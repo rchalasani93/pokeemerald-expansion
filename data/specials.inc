@@ -638,3 +638,13 @@ gSpecials::
 	def_special UpdateTrainerCardPhotoIcons
 	def_special StickerManGetBragFlags
 	def_special CheckAddCoins
+	def_special Roguelite_GetRunState
+	def_special Roguelite_StartRun
+	def_special Roguelite_EndRun
+	def_special Roguelite_BuildStarterMenu
+	def_special Roguelite_PickStarter
+	def_special Roguelite_PrepareWave
+	def_special Roguelite_StartWaveBattle, waitstate=1
+	def_special Roguelite_AfterWave
+	def_special Roguelite_BuildRewardMenu
+	def_special Roguelite_GiveReward

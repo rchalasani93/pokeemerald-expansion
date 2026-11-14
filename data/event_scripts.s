@@ -59,6 +59,7 @@
 #include "constants/rtc.h"
 #include "constants/roulette.h"
 #include "constants/script_menu.h"
+#include "constants/roguelite.h"
 #include "constants/seagallop.h"
 #include "constants/secret_bases.h"
 #include "constants/siirtc.h"
@@ -1738,3 +1739,4 @@ EventScript_PalletTown_PlayersHouse_2F_TurnOnPC::
 	.include "data/scripts/battle_frontier.inc"
 	.include "data/scripts/apricorn_tree.inc"
 	.include "data/scripts/wild_encounter.inc"
+	.include "data/scripts/roguelite.inc"
