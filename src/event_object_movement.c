@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "malloc.h"
 #include "battle_anim.h"
 #include "battle_pyramid.h"
@@ -2679,7 +2680,7 @@ void GetFollowerAction(struct ScriptContext *ctx) // Essentially a big switch fo
     }
 
     emotion = RandomWeightedIndex(emotion_weight, FOLLOWER_EMOTION_LENGTH);
-    if ((mon->status & STATUS1_PSN_ANY) && GetMonAbility(mon) != ABILITY_POISON_HEAL)
+    if ((mon->status & STATUS1_PSN_ANY) && !MonHasAbility(mon, ABILITY_POISON_HEAL))
         emotion = FOLLOWER_EMOTION_POISONED;
 
     // end special conditions

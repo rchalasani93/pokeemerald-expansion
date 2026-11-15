@@ -252,3 +252,24 @@ enum Ability GetFirstAbilitySlotInList(enum BattlerId battler, enum Ability main
     }
     return mainAbility;
 }
+
+bool32 SpeciesHasInnate(enum Species species, enum Ability ability)
+{
+    u32 i;
+
+    if (ability == ABILITY_NONE)
+        return FALSE;
+    for (i = 0; i < MAX_MON_INNATES; i++)
+    {
+        if (GetSpeciesInnate(species, i) == ability)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+// Out of battle (field effects, Pickup, hatching...): the Pokémon's regular
+// ability or any of its innates. Nothing suppresses abilities out of battle.
+bool32 MonHasAbility(struct Pokemon *mon, enum Ability ability)
+{
+    return GetMonAbility(mon) == ability || SpeciesHasInnate(GetMonData(mon, MON_DATA_SPECIES), ability);
+}

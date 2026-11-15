@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include "global.h"
 #include "innates.h"
+#include "randomizer.h"
 #include "fake_rtc.h"
 #include "gpu_regs.h"
 #include "load_save.h"
@@ -573,6 +574,7 @@ static void ResetGlobalVariables(void)
     ReinitCallbacks();
     gBattleTypeFlags = 0;
     Test_ClearSpeciesInnates();
+    gTestRandomizerOptions = 0;
 }
 
 static void FunctionTest_SetUp(void *data)

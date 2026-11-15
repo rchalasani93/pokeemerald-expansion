@@ -7509,7 +7509,7 @@ static void Cmd_pickup(void)
 
             ability = GetSpeciesAbility(species, GetMonData(&gParties[B_TRAINER_PLAYER][i], MON_DATA_ABILITY_NUM));
 
-            if (ability == ABILITY_PICKUP
+            if ((ability == ABILITY_PICKUP || (species != SPECIES_EGG && SpeciesHasInnate(species, ABILITY_PICKUP)))
                 && species != SPECIES_NONE
                 && species != SPECIES_EGG
                 && heldItem == ITEM_NONE
@@ -7536,7 +7536,7 @@ static void Cmd_pickup(void)
                     }
                 }
             }
-            else if (ability == ABILITY_HONEY_GATHER
+            else if ((ability == ABILITY_HONEY_GATHER || (species != SPECIES_EGG && SpeciesHasInnate(species, ABILITY_HONEY_GATHER)))
                 && species != 0
                 && species != SPECIES_EGG
                 && heldItem == ITEM_NONE)

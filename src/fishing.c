@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "main.h"
 #include "event_object_movement.h"
 #include "fieldmap.h"
@@ -491,7 +492,8 @@ static bool32 Fishing_DoesFirstMonInPartyHaveSuctionCupsOrStickyHold(void)
 
     ability = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
 
-    return (ability == ABILITY_SUCTION_CUPS || ability == ABILITY_STICKY_HOLD);
+    (void)ability;
+    return MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_SUCTION_CUPS) || MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_STICKY_HOLD);
 }
 
 static bool32 Fishing_RollForBite(u32 rod, bool32 isStickyHold)

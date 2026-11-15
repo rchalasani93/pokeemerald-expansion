@@ -3924,7 +3924,7 @@ bool32 AnyPartyMemberStatused(enum BattlerId battlerId, bool32 checkSoundproof)
             continue;
         if (GetConfig(B_HEAL_BELL_SOUNDPROOF) < GEN_5
          && checkSoundproof
-         && GetMonAbility(&party[monIndex]) == ABILITY_SOUNDPROOF)
+         && MonHasAbility(&party[monIndex], ABILITY_SOUNDPROOF))
             continue;
         if (GetMonData(&party[monIndex], MON_DATA_STATUS) != STATUS1_NONE)
             return TRUE;

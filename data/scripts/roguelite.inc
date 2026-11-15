@@ -49,6 +49,11 @@ Roguelite_EventScript_DraftLoop:
 	case ROGUELITE_PICK_DONE, Roguelite_EventScript_DraftDone
 	case ROGUELITE_PICK_TOO_EXPENSIVE, Roguelite_EventScript_DraftTooExpensive
 	case ROGUELITE_PICK_NEED_ONE, Roguelite_EventScript_DraftNeedOne
+	case ROGUELITE_PICK_ALREADY, Roguelite_EventScript_DraftAlready
+	goto Roguelite_EventScript_DraftLoop
+
+Roguelite_EventScript_DraftAlready:
+	msgbox Roguelite_Text_DraftAlready, MSGBOX_DEFAULT
 	goto Roguelite_EventScript_DraftLoop
 
 Roguelite_EventScript_DraftPicked:
@@ -155,6 +160,7 @@ Roguelite_EventScript_TakeBreak:
 Roguelite_EventScript_ConfirmGiveUp:
 	msgbox Roguelite_Text_ConfirmGiveUp, MSGBOX_YESNO
 	goto_if_eq VAR_RESULT, NO, Roguelite_EventScript_BetweenWaves
+	setvar VAR_0x8004, ROGUELITE_END_GAVE_UP
 	goto Roguelite_EventScript_EndRun
 
 Roguelite_EventScript_BossFled:
@@ -163,12 +169,14 @@ Roguelite_EventScript_BossFled:
 
 Roguelite_EventScript_RunLost:
 	msgbox Roguelite_Text_RunLost, MSGBOX_DEFAULT
+	setvar VAR_0x8004, ROGUELITE_END_LOST
 	goto Roguelite_EventScript_EndRun
 
 Roguelite_EventScript_RunWon:
 	playfanfare MUS_OBTAIN_SYMBOL
 	msgbox Roguelite_Text_RunWon, MSGBOX_DEFAULT
 	waitfanfare
+	setvar VAR_0x8004, ROGUELITE_END_WON
 Roguelite_EventScript_EndRun:
 	special Roguelite_EndRun
 	goto_if_eq VAR_RESULT, FALSE, Roguelite_EventScript_EndRunNoRecord
@@ -177,6 +185,7 @@ Roguelite_EventScript_EndRun:
 Roguelite_EventScript_EndRunNoRecord:
 	msgbox Roguelite_Text_RunOver, MSGBOX_DEFAULT
 Roguelite_EventScript_EndRunDone:
+	msgbox Roguelite_Text_CoinsEarned, MSGBOX_DEFAULT
 	msgbox Roguelite_Text_PartyBack, MSGBOX_DEFAULT
 	release
 	end
@@ -189,6 +198,8 @@ Roguelite_Text_Intro:
 	.string "loops of battle… Want to try a run?\p"
 	.string "Draft a team, clear wave after wave,\n"
 	.string "and pick one reward after each.\p"
+	.string "Any Pokémon you catch can be drafted\n"
+	.string "in later runs.\p"
 	.string "Every 10 waves a boss guards a new\n"
 	.string "biome. Reach wave 50 to win.\p"
 	.string "Your best so far: wave {STR_VAR_1}.\n"
@@ -215,12 +226,18 @@ Roguelite_Text_ResumeDraft:
 	.string "Let's finish that.$"
 
 Roguelite_Text_DraftIntro:
-	.string "You have 10 points to spend.\n"
-	.string "Stronger lines cost more points.$"
+	.string "Spend your points on a team.\n"
+	.string "Stronger lines cost more points.\p"
+	.string "All 27 classic starters are here,\n"
+	.string "plus every Pokémon family you've\l"
+	.string "caught before.$"
 
 Roguelite_Text_DraftPrompt:
-	.string "Points left: {STR_VAR_1}.\n"
+	.string "Points left: {STR_VAR_1}. Page {STR_VAR_2}/{STR_VAR_3}.\n"
 	.string "Who joins your team?$"
+
+Roguelite_Text_DraftAlready:
+	.string "{STR_VAR_2} is already on your team.$"
 
 Roguelite_Text_Joined:
 	.string "{STR_VAR_2} joined your team!$"
@@ -295,8 +312,8 @@ Roguelite_Text_OptGiveUp:
 	.string "End the run$"
 
 Roguelite_Text_Break:
-	.string "Take your time. Heal up, sort your\n"
-	.string "Bag, save… Talk to me to continue.$"
+	.string "Take your time. Sort your Bag, use\n"
+	.string "the hub, save… Talk to me to continue.$"
 
 Roguelite_Text_ConfirmGiveUp:
 	.string "End the run here? Your run team\n"
@@ -316,6 +333,10 @@ Roguelite_Text_NewRecord:
 
 Roguelite_Text_RunOver:
 	.string "You reached wave {STR_VAR_1}.$"
+
+Roguelite_Text_CoinsEarned:
+	.string "You earned {STR_VAR_2} Rogue Coins.\n"
+	.string "Spend them with the Builder.$"
 
 Roguelite_Text_PartyBack:
 	.string "Your run team has gone free, and\n"

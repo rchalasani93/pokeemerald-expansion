@@ -650,3 +650,8 @@ gSpecials::
 	def_special Roguelite_GiveReward
 	def_special Roguelite_BuildRouteMenu
 	def_special Roguelite_SetRoute
+	def_special Roguelite_BuildHubAreaMenu
+	def_special Roguelite_BuyHubArea
+	def_special Roguelite_BufferCoins
+	def_special Roguelite_BuildAbilityMenu
+	def_special Roguelite_SetMonAbility

@@ -8,7 +8,10 @@
 #include "malloc.h"
 #include "pokemon.h"
 #include "pokemon_storage_system.h"
+#include "party_menu.h"
+#include "pokedex.h"
 #include "random.h"
+#include "randomizer.h"
 #include "script_menu.h"
 #include "script_pokemon_util.h"
 #include "string_util.h"
@@ -29,27 +32,20 @@ struct RogueStarter
     u8 cost;
 };
 
-// Draft pool. Cost reflects how strong the fully evolved line ends up,
-// so a team is a trade-off between a few strong lines or many weaker ones.
+// The 27 classic starters (Gen 1-9) are always draftable. Like PokeRogue, they
+// cost 3 points, or 4 for the nine lines whose final form is strongest
+// (base stat total plus best attacking stat and Speed).
 static const struct RogueStarter sStarterPool[] =
 {
-    {SPECIES_BULBASAUR,  3}, {SPECIES_CHARMANDER, 3}, {SPECIES_SQUIRTLE,  3},
-    {SPECIES_CHIKORITA,  3}, {SPECIES_CYNDAQUIL,  3}, {SPECIES_TOTODILE,  3},
-    {SPECIES_TREECKO,    3}, {SPECIES_TORCHIC,    3}, {SPECIES_MUDKIP,    3},
-    {SPECIES_PIKACHU,    2}, {SPECIES_EEVEE,      3}, {SPECIES_MAGIKARP,  3},
-    {SPECIES_ABRA,       3}, {SPECIES_GASTLY,     3}, {SPECIES_MACHOP,    3},
-    {SPECIES_GEODUDE,    2}, {SPECIES_ZUBAT,      2}, {SPECIES_PIDGEY,    1},
-    {SPECIES_RATTATA,    1}, {SPECIES_CATERPIE,   1}, {SPECIES_WEEDLE,    1},
-    {SPECIES_ODDISH,     2}, {SPECIES_POLIWAG,    2}, {SPECIES_GROWLITHE, 3},
-    {SPECIES_PONYTA,     2}, {SPECIES_ZIGZAGOON,  1}, {SPECIES_POOCHYENA, 1},
-    {SPECIES_WURMPLE,    1}, {SPECIES_LOTAD,      2}, {SPECIES_SEEDOT,    2},
-    {SPECIES_TAILLOW,    2}, {SPECIES_WINGULL,    1}, {SPECIES_RALTS,     4},
-    {SPECIES_SHROOMISH,  3}, {SPECIES_ARON,       4}, {SPECIES_ELECTRIKE, 2},
-    {SPECIES_TRAPINCH,   4}, {SPECIES_SWABLU,     3}, {SPECIES_SNORUNT,   2},
-    {SPECIES_SPHEAL,     3}, {SPECIES_HOUNDOUR,   3}, {SPECIES_SNEASEL,   3},
-    {SPECIES_SCYTHER,    5}, {SPECIES_LAPRAS,     5}, {SPECIES_SNORLAX,   6},
-    {SPECIES_DRATINI,    6}, {SPECIES_LARVITAR,   6}, {SPECIES_BAGON,     6},
-    {SPECIES_BELDUM,     6}, {SPECIES_ABSOL,      4},
+    {SPECIES_BULBASAUR,  3}, {SPECIES_CHARMANDER, 4}, {SPECIES_SQUIRTLE,   3},
+    {SPECIES_CHIKORITA,  3}, {SPECIES_CYNDAQUIL,  4}, {SPECIES_TOTODILE,   3},
+    {SPECIES_TREECKO,    4}, {SPECIES_TORCHIC,    3}, {SPECIES_MUDKIP,     3},
+    {SPECIES_TURTWIG,    3}, {SPECIES_CHIMCHAR,   4}, {SPECIES_PIPLUP,     3},
+    {SPECIES_SNIVY,      3}, {SPECIES_TEPIG,      3}, {SPECIES_OSHAWOTT,   3},
+    {SPECIES_CHESPIN,    3}, {SPECIES_FENNEKIN,   4}, {SPECIES_FROAKIE,    4},
+    {SPECIES_ROWLET,     3}, {SPECIES_LITTEN,     3}, {SPECIES_POPPLIO,    3},
+    {SPECIES_GROOKEY,    3}, {SPECIES_SCORBUNNY,  4}, {SPECIES_SOBBLE,     4},
+    {SPECIES_SPRIGATITO, 4}, {SPECIES_FUECOCO,    3}, {SPECIES_QUAXLY,     3},
 };
 
 struct RogueBiome
@@ -184,7 +180,8 @@ static const struct RogueReward sRewards[] =
 
 static const u8 sText_HealParty[] = _("Full party heal");
 static const u8 sText_StartRun[] = _("Start the run!");
-static const u8 sText_Reroll[] = _("Reroll choices");
+static const u8 sText_NextPage[] = _("Next page");
+static const u8 sText_PrevPage[] = _("Previous page");
 static const u8 sText_TierTags[TIER_COUNT][8] = {
     [TIER_COMMON] = _(""),
     [TIER_GREAT]  = _("{STAR}"),
@@ -196,7 +193,6 @@ static const u8 sText_TierTags[TIER_COUNT][8] = {
 // Volatile state (only lives between a menu being built and being answered)
 // ---------------------------------------------------------------------------
 
-EWRAM_DATA static u8 sStarterChoices[ROGUELITE_STARTER_CHOICES] = {0};
 EWRAM_DATA static u8 sRewardChoices[ROGUELITE_REWARD_CHOICES] = {0};
 EWRAM_DATA static bool8 sWaveIsDouble = FALSE;
 
@@ -314,6 +310,9 @@ static u32 EvolveForLevel(u32 species, u32 level)
 static u32 PickFromPool(const u16 *pool, u32 count)
 {
     u32 tries;
+
+    if (Randomizer_IsEnabled(RANDOMIZE_RUN_POKEMON))
+        return Randomizer_GetRunSpecies(count);
     for (tries = 0; tries < 8; tries++)
     {
         u32 species = pool[Random() % count];
@@ -360,6 +359,32 @@ void Roguelite_GetRunState(void)
     gSpecialVar_Result = Roguelite_IsRunActive() ? max(GetWave(), 1) : 0;
 }
 
+static u32 GetDraftBudget(void)
+{
+    return ROGUELITE_STARTER_BUDGET + VarGet(VAR_ROGUE_HUB_DRAFT_LEVEL) * ROGUELITE_DRAFT_OFFICE_BONUS;
+}
+
+// Supply Depot (hub area): extra starting items per level.
+static void GiveSupplyDepotItems(void)
+{
+    u32 level = VarGet(VAR_ROGUE_HUB_SUPPLY_LEVEL);
+    if (level >= 1)
+    {
+        AddBagItem(ITEM_POKE_BALL, 5);
+        AddBagItem(ITEM_SUPER_POTION, 3);
+    }
+    if (level >= 2)
+    {
+        AddBagItem(ITEM_GREAT_BALL, 5);
+        AddBagItem(ITEM_REVIVE, 2);
+    }
+    if (level >= 3)
+    {
+        AddBagItem(ITEM_RARE_CANDY, 3);
+        AddBagItem(ITEM_FULL_RESTORE, 1);
+    }
+}
+
 // Parks the current party in the PC and starts a fresh run.
 // VAR_RESULT = FALSE if the PC had no room.
 void Roguelite_StartRun(void)
@@ -393,15 +418,18 @@ void Roguelite_StartRun(void)
     CalculatePlayerPartyCount();
 
     VarSet(VAR_ROGUELITE_WAVE, 0);
-    VarSet(VAR_ROGUELITE_BUDGET, ROGUELITE_STARTER_BUDGET);
+    VarSet(VAR_ROGUELITE_BUDGET, GetDraftBudget());
+    VarSet(VAR_ROGUELITE_DRAFT_PAGE, 0);
     FlagSet(FLAG_ROGUELITE_ACTIVE);
     AddBagItem(ITEM_POKE_BALL, 5);
     AddBagItem(ITEM_POTION, 3);
+    GiveSupplyDepotItems();
     gSpecialVar_Result = TRUE;
 }
 
 // Ends the run: run party is released, parked party comes back.
-// gStringVar1 = wave reached, VAR_RESULT = TRUE if it's a new best.
+// VAR_0x8004 = ROGUELITE_END_LOST / _GAVE_UP / _WON.
+// gStringVar1 = wave reached, gStringVar2 = Rogue Coins earned, VAR_RESULT = TRUE if it's a new best.
 void Roguelite_EndRun(void)
 {
     u32 i, wave = GetWave();
@@ -413,6 +441,16 @@ void Roguelite_EndRun(void)
         gSpecialVar_Result = TRUE;
     }
     ConvertIntToDecimalStringN(gStringVar1, wave, STR_CONV_MODE_LEFT_ALIGN, 3);
+
+    // Rogue Coins for the hub: 5 per cleared wave, 50 per boss beaten, 500 for a win.
+    // VAR_0x8004 says how the run ended (ROGUELITE_END_*).
+    {
+        u32 cleared = (gSpecialVar_0x8004 == ROGUELITE_END_LOST && wave > 0) ? wave - 1 : wave;
+        u32 earned = cleared * 5 + (cleared / ROGUELITE_WAVES_PER_BIOME) * 50
+                   + (gSpecialVar_0x8004 == ROGUELITE_END_WON ? 500 : 0);
+        VarSet(VAR_ROGUE_COINS, min(VarGet(VAR_ROGUE_COINS) + earned, ROGUELITE_MAX_COINS));
+        ConvertIntToDecimalStringN(gStringVar2, earned, STR_CONV_MODE_LEFT_ALIGN, 4);
+    }
 
     ZeroPlayerPartyMons();
     for (i = 0; i < PARTY_SIZE; i++)
@@ -439,55 +477,176 @@ void Roguelite_EndRun(void)
 // Specials: starter draft
 // ---------------------------------------------------------------------------
 
-// Rolls ROGUELITE_STARTER_CHOICES options and pushes them for dynmultistack.
-// gStringVar1 = points left.
-void Roguelite_BuildStarterMenu(void)
+// Draft cost of a caught (unlocked) line, from its final form's base stat
+// total, roughly like PokeRogue: weak lines are cheap, legends cost most.
+static u32 GetFinalEvolution(u32 species)
 {
-    u32 i, j;
-    u32 budget = VarGet(VAR_ROGUELITE_BUDGET);
-
-    for (i = 0; i < ROGUELITE_STARTER_CHOICES; i++)
+    u32 stage;
+    for (stage = 0; stage < 4; stage++)
     {
-        u32 tries, choice = 0;
-        for (tries = 0; tries < 20; tries++)
+        const struct Evolution *evos = GetSpeciesEvolutions(species);
+        if (evos == NULL || evos[0].method == EVOLUTIONS_END || !IsSpeciesEnabled(evos[0].targetSpecies))
+            break;
+        species = evos[0].targetSpecies;
+    }
+    return species;
+}
+
+static u32 GetUnlockCost(u32 species)
+{
+    u32 bst = GetSpeciesBaseStatTotal(GetFinalEvolution(species));
+
+    if (gSpeciesInfo[species].isRestrictedLegendary || gSpeciesInfo[species].isMythical)
+        return 8;
+    if (gSpeciesInfo[species].isSubLegendary || gSpeciesInfo[species].isUltraBeast || gSpeciesInfo[species].isParadox)
+        return 7;
+    if (bst <= 360)
+        return 1;
+    if (bst <= 430)
+        return 2;
+    if (bst <= 500)
+        return 3;
+    if (bst <= 540)
+        return 4;
+    if (bst <= 580)
+        return 5;
+    return 6;
+}
+
+static bool32 IsClassicStarter(u32 species)
+{
+    u32 i;
+    for (i = 0; i < ARRAY_COUNT(sStarterPool); i++)
+    {
+        if (sStarterPool[i].species == species)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+// Fills list with every draftable species: the classic starters, then the
+// first stage of every family the player has caught (Pokédex), like
+// PokeRogue's unlocks. Returns the count.
+#define DRAFT_HAS_PRE_EVO   (1 << 0)
+#define DRAFT_FAMILY_CAUGHT (1 << 1)
+
+// The 27 classic starters, then the first stage of every family with a caught
+// member, in National Dex order. One pass over the species table (the generic
+// pre-evolution and dex-number lookups each scan every species).
+static u32 BuildDraftList(struct RogueStarter *list, u32 maxCount)
+{
+    u8 *marks = AllocZeroed(NUM_SPECIES);
+    u32 count, species, pass, i;
+
+    for (count = 0; count < ARRAY_COUNT(sStarterPool) && count < maxCount; count++)
+        list[count] = sStarterPool[count];
+    if (marks == NULL)
+        return count;
+
+    for (species = 1; species < NUM_SPECIES; species++)
+    {
+        const struct Evolution *evos;
+
+        if (!IsSpeciesEnabled(species))
+            continue;
+        if (GetSetPokedexFlag(gSpeciesInfo[species].natDexNum, FLAG_GET_CAUGHT))
+            marks[species] |= DRAFT_FAMILY_CAUGHT;
+        evos = GetSpeciesEvolutions(species);
+        for (i = 0; evos != NULL && evos[i].method != EVOLUTIONS_END; i++)
         {
-            bool32 dupe = FALSE;
-            choice = Random() % ARRAY_COUNT(sStarterPool);
-            for (j = 0; j < i; j++)
-                if (sStarterChoices[j] == choice)
-                    dupe = TRUE;
-            if (!dupe && IsSpeciesEnabled(sStarterPool[choice].species) && !IsSpeciesInParty(sStarterPool[choice].species))
-                break;
+            if (IsSpeciesEnabled(evos[i].targetSpecies))
+                marks[SanitizeSpeciesId(evos[i].targetSpecies)] |= DRAFT_HAS_PRE_EVO;
         }
-        sStarterChoices[i] = choice;
+    }
+    // A caught evolution unlocks its pre-evolutions (families are at most 3 stages)
+    for (pass = 0; pass < 3; pass++)
+    {
+        for (species = 1; species < NUM_SPECIES; species++)
+        {
+            const struct Evolution *evos;
+            if (marks[species] & DRAFT_FAMILY_CAUGHT || !IsSpeciesEnabled(species))
+                continue;
+            evos = GetSpeciesEvolutions(species);
+            for (i = 0; evos != NULL && evos[i].method != EVOLUTIONS_END; i++)
+            {
+                if (IsSpeciesEnabled(evos[i].targetSpecies)
+                 && marks[SanitizeSpeciesId(evos[i].targetSpecies)] & DRAFT_FAMILY_CAUGHT)
+                {
+                    marks[species] |= DRAFT_FAMILY_CAUGHT;
+                    break;
+                }
+            }
+        }
     }
 
-    for (i = 0; i < ROGUELITE_STARTER_CHOICES; i++)
+    for (species = 1; species < NUM_SPECIES && count < maxCount; species++)
     {
-        const struct RogueStarter *starter = &sStarterPool[sStarterChoices[i]];
+        if (marks[species] != DRAFT_FAMILY_CAUGHT // caught family, no pre-evolution
+         || GET_BASE_SPECIES_ID(species) != species
+         || gSpeciesInfo[species].natDexNum == 0
+         || IsClassicStarter(species))
+            continue;
+        list[count].species = species;
+        list[count].cost = GetUnlockCost(species);
+        count++;
+    }
+    Free(marks);
+    return count;
+}
+
+#define MAX_DRAFT_LIST (ARRAY_COUNT(sStarterPool) + NATIONAL_DEX_COUNT)
+
+// Pushes one page of the draft list for dynmultistack.
+// gStringVar1 = points left, gStringVar2 = page, gStringVar3 = page count.
+// VAR_0x8004 = number of unlocked (caught) lines on top of the classic starters.
+void Roguelite_BuildStarterMenu(void)
+{
+    struct RogueStarter *list = Alloc(sizeof(struct RogueStarter) * MAX_DRAFT_LIST);
+    u32 i, count, pages, page, start;
+
+    if (list == NULL)
+        return;
+    count = BuildDraftList(list, MAX_DRAFT_LIST);
+    pages = (count + ROGUELITE_DRAFT_PAGE_SIZE - 1) / ROGUELITE_DRAFT_PAGE_SIZE;
+    page = min(VarGet(VAR_ROGUELITE_DRAFT_PAGE), pages - 1);
+    VarSet(VAR_ROGUELITE_DRAFT_PAGE, page);
+    start = page * ROGUELITE_DRAFT_PAGE_SIZE;
+
+    for (i = start; i < count && i < start + ROGUELITE_DRAFT_PAGE_SIZE; i++)
+    {
         u8 *str = AllocMenuString();
-        u8 *end = StringCopy(str, GetSpeciesName(starter->species));
+        u8 *end = StringCopy(str, GetSpeciesName(list[i].species));
         *end++ = CHAR_SPACE;
         *end++ = CHAR_LEFT_PAREN;
-        end = ConvertIntToDecimalStringN(end, starter->cost, STR_CONV_MODE_LEFT_ALIGN, 2);
+        end = ConvertIntToDecimalStringN(end, list[i].cost, STR_CONV_MODE_LEFT_ALIGN, 2);
         *end++ = CHAR_RIGHT_PAREN;
         *end = EOS;
         PushMenuItem(str, i);
     }
-
     if (CalculatePlayerPartyCount() > 0)
     {
         u8 *str = AllocMenuString();
         StringCopy(str, sText_StartRun);
         PushMenuItem(str, ROGUELITE_MENU_START_RUN);
     }
+    if (page + 1 < pages)
     {
         u8 *str = AllocMenuString();
-        StringCopy(str, sText_Reroll);
-        PushMenuItem(str, ROGUELITE_MENU_REROLL);
+        StringCopy(str, sText_NextPage);
+        PushMenuItem(str, ROGUELITE_MENU_NEXT_PAGE);
+    }
+    if (page > 0)
+    {
+        u8 *str = AllocMenuString();
+        StringCopy(str, sText_PrevPage);
+        PushMenuItem(str, ROGUELITE_MENU_PREV_PAGE);
     }
 
-    ConvertIntToDecimalStringN(gStringVar1, budget, STR_CONV_MODE_LEFT_ALIGN, 2);
+    ConvertIntToDecimalStringN(gStringVar1, VarGet(VAR_ROGUELITE_BUDGET), STR_CONV_MODE_LEFT_ALIGN, 2);
+    ConvertIntToDecimalStringN(gStringVar2, page + 1, STR_CONV_MODE_LEFT_ALIGN, 3);
+    ConvertIntToDecimalStringN(gStringVar3, pages, STR_CONV_MODE_LEFT_ALIGN, 3);
+    gSpecialVar_0x8004 = count - ARRAY_COUNT(sStarterPool);
+    Free(list);
 }
 
 // Reads the menu choice from VAR_RESULT and applies it. gStringVar2 = species name.
@@ -495,29 +654,52 @@ void Roguelite_PickStarter(void)
 {
     u32 choice = gSpecialVar_Result;
     u32 budget = VarGet(VAR_ROGUELITE_BUDGET);
-    const struct RogueStarter *starter;
+    struct RogueStarter *list, starter;
+    u32 count;
 
     if (choice == ROGUELITE_MENU_START_RUN)
     {
         gSpecialVar_Result = CalculatePlayerPartyCount() > 0 ? ROGUELITE_PICK_DONE : ROGUELITE_PICK_NEED_ONE;
         return;
     }
-    if (choice == ROGUELITE_MENU_REROLL || choice >= ROGUELITE_STARTER_CHOICES)
+    if (choice == ROGUELITE_MENU_NEXT_PAGE || choice == ROGUELITE_MENU_PREV_PAGE)
     {
-        gSpecialVar_Result = ROGUELITE_PICK_REROLL;
+        u32 page = VarGet(VAR_ROGUELITE_DRAFT_PAGE);
+        VarSet(VAR_ROGUELITE_DRAFT_PAGE, choice == ROGUELITE_MENU_NEXT_PAGE ? page + 1 : (page > 0 ? page - 1 : 0));
+        gSpecialVar_Result = ROGUELITE_PICK_PAGE;
         return;
     }
 
-    starter = &sStarterPool[sStarterChoices[choice]];
-    StringCopy(gStringVar2, GetSpeciesName(starter->species));
-    if (starter->cost > budget)
+    list = Alloc(sizeof(struct RogueStarter) * MAX_DRAFT_LIST);
+    if (list == NULL)
+    {
+        gSpecialVar_Result = ROGUELITE_PICK_PAGE;
+        return;
+    }
+    count = BuildDraftList(list, MAX_DRAFT_LIST);
+    if (choice >= count) // B pressed (MULTI_B_PRESSED) or a stale id
+    {
+        Free(list);
+        gSpecialVar_Result = ROGUELITE_PICK_PAGE;
+        return;
+    }
+    starter = list[choice];
+    Free(list);
+
+    StringCopy(gStringVar2, GetSpeciesName(starter.species));
+    if (IsSpeciesInParty(starter.species))
+    {
+        gSpecialVar_Result = ROGUELITE_PICK_ALREADY;
+        return;
+    }
+    if (starter.cost > budget)
     {
         gSpecialVar_Result = ROGUELITE_PICK_TOO_EXPENSIVE;
         return;
     }
 
-    ScriptGiveMon(starter->species, ROGUELITE_STARTER_LEVEL, ITEM_NONE);
-    budget -= starter->cost;
+    ScriptGiveMon(starter.species, ROGUELITE_STARTER_LEVEL, ITEM_NONE);
+    budget -= starter.cost;
     VarSet(VAR_ROGUELITE_BUDGET, budget);
 
     if (budget == 0 || CalculatePlayerPartyCount() >= PARTY_SIZE)
@@ -1037,4 +1219,171 @@ void Roguelite_CreateTrainerParty(struct Pokemon *party)
         CalculateMonStats(mon);
     }
     gPartiesCount[B_TRAINER_OPPONENT_A] = count;
+}
+
+// ---------------------------------------------------------------------------
+// Hub: areas built with Rogue Coins (Emerald Rogue-style)
+// ---------------------------------------------------------------------------
+
+struct HubArea
+{
+    const u8 *name;
+    u16 flag;       // built flag for one-off areas, 0 for levelled ones
+    u16 levelVar;   // level var for levelled areas, 0 for one-off ones
+    u16 prices[ROGUELITE_HUB_MAX_LEVEL];
+};
+
+static const struct HubArea sHubAreas[ROGUELITE_HUB_AREA_COUNT] =
+{
+    [ROGUELITE_HUB_AREA_MART]        = { COMPOUND_STRING("Poké Mart"),     FLAG_ROGUE_HUB_MART,        0, {300} },
+    [ROGUELITE_HUB_AREA_HEALER]      = { COMPOUND_STRING("Healer"),        FLAG_ROGUE_HUB_HEALER,      0, {600} },
+    [ROGUELITE_HUB_AREA_TUTOR]       = { COMPOUND_STRING("Move Tutor"),    FLAG_ROGUE_HUB_TUTOR,       0, {400} },
+    [ROGUELITE_HUB_AREA_ABILITY_LAB] = { COMPOUND_STRING("Ability Lab"),   FLAG_ROGUE_HUB_ABILITY_LAB, 0, {800} },
+    [ROGUELITE_HUB_AREA_SUPPLY]      = { COMPOUND_STRING("Supply Depot"),  0, VAR_ROGUE_HUB_SUPPLY_LEVEL, {300, 700, 1200} },
+    [ROGUELITE_HUB_AREA_DRAFT]       = { COMPOUND_STRING("Draft Office"),  0, VAR_ROGUE_HUB_DRAFT_LEVEL,  {400, 900, 1600} },
+};
+
+static const u8 sText_Built[] = _(" (built)");
+static const u8 sText_Max[] = _(" (max)");
+static const u8 sText_Level[] = _(" Lv");
+static const u8 sText_Done[] = _("Done");
+
+static u32 GetAreaLevel(u32 area)
+{
+    if (sHubAreas[area].flag)
+        return FlagGet(sHubAreas[area].flag) ? 1 : 0;
+    return VarGet(sHubAreas[area].levelVar);
+}
+
+static u32 GetAreaMaxLevel(u32 area)
+{
+    u32 level = 0;
+    while (level < ROGUELITE_HUB_MAX_LEVEL && sHubAreas[area].prices[level] != 0)
+        level++;
+    return level;
+}
+
+// Pushes the Builder's list for dynmultistack. gStringVar1 = coins.
+void Roguelite_BuildHubAreaMenu(void)
+{
+    u32 area;
+
+    for (area = 0; area < ROGUELITE_HUB_AREA_COUNT; area++)
+    {
+        u32 level = GetAreaLevel(area), maxLevel = GetAreaMaxLevel(area);
+        u8 *str = AllocMenuString();
+        u8 *end = StringCopy(str, sHubAreas[area].name);
+
+        if (maxLevel > 1 && level > 0)
+        {
+            end = StringCopy(end, sText_Level);
+            end = ConvertIntToDecimalStringN(end, level, STR_CONV_MODE_LEFT_ALIGN, 1);
+        }
+        if (level >= maxLevel)
+        {
+            StringCopy(end, maxLevel > 1 ? sText_Max : sText_Built);
+        }
+        else
+        {
+            *end++ = CHAR_SPACE;
+            *end++ = CHAR_HYPHEN;
+            *end++ = CHAR_SPACE;
+            ConvertIntToDecimalStringN(end, sHubAreas[area].prices[level], STR_CONV_MODE_LEFT_ALIGN, 4);
+        }
+        PushMenuItem(str, area);
+    }
+    {
+        u8 *str = AllocMenuString();
+        StringCopy(str, sText_Done);
+        PushMenuItem(str, ROGUELITE_HUB_AREA_COUNT);
+    }
+    ConvertIntToDecimalStringN(gStringVar1, VarGet(VAR_ROGUE_COINS), STR_CONV_MODE_LEFT_ALIGN, 4);
+}
+
+// Builds or upgrades the area picked in VAR_RESULT.
+// VAR_RESULT = ROGUELITE_BUILD_*; gStringVar2 = area name; VAR_0x8004 = area id.
+void Roguelite_BuyHubArea(void)
+{
+    u32 area = gSpecialVar_Result, level, price;
+
+    gSpecialVar_0x8004 = area;
+    if (area >= ROGUELITE_HUB_AREA_COUNT)
+    {
+        gSpecialVar_Result = ROGUELITE_BUILD_CANCEL;
+        return;
+    }
+    StringCopy(gStringVar2, sHubAreas[area].name);
+    level = GetAreaLevel(area);
+    if (level >= GetAreaMaxLevel(area))
+    {
+        gSpecialVar_Result = ROGUELITE_BUILD_MAXED;
+        return;
+    }
+    price = sHubAreas[area].prices[level];
+    if (VarGet(VAR_ROGUE_COINS) < price)
+    {
+        gSpecialVar_Result = ROGUELITE_BUILD_TOO_POOR;
+        return;
+    }
+    VarSet(VAR_ROGUE_COINS, VarGet(VAR_ROGUE_COINS) - price);
+    if (sHubAreas[area].flag)
+        FlagSet(sHubAreas[area].flag);
+    else
+        VarSet(sHubAreas[area].levelVar, level + 1);
+    ConvertIntToDecimalStringN(gStringVar1, VarGet(VAR_ROGUE_COINS), STR_CONV_MODE_LEFT_ALIGN, 4);
+    gSpecialVar_Result = ROGUELITE_BUILD_DONE;
+}
+
+// gStringVar1 = Rogue Coins.
+void Roguelite_BufferCoins(void)
+{
+    ConvertIntToDecimalStringN(gStringVar1, VarGet(VAR_ROGUE_COINS), STR_CONV_MODE_LEFT_ALIGN, 4);
+}
+
+// Ability Lab: VAR_0x8004 = party slot. Pushes the species' regular abilities
+// (ids are ability slots) for dynmultistack. gStringVar1 = nickname.
+void Roguelite_BuildAbilityMenu(void)
+{
+    struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][gSpecialVar_0x8004];
+    u32 species = GetMonData(mon, MON_DATA_SPECIES), slot, j;
+    u32 current = GetMonData(mon, MON_DATA_ABILITY_NUM);
+
+    GetMonNickname(mon, gStringVar1);
+    for (slot = 0; slot < NUM_ABILITY_SLOTS; slot++)
+    {
+        enum Ability ability = GetSpeciesAbility(species, slot);
+        bool32 dupe = FALSE;
+        u8 *str, *end;
+
+        if (ability == ABILITY_NONE)
+            continue;
+        for (j = 0; j < slot; j++)
+        {
+            if (GetSpeciesAbility(species, j) == ability)
+                dupe = TRUE;
+        }
+        if (dupe)
+            continue;
+        str = AllocMenuString();
+        end = StringCopy(str, gAbilitiesInfo[ability].name);
+        if (GetMonAbility(mon) == ability && (current == slot || current >= NUM_ABILITY_SLOTS))
+            StringCopy(end, COMPOUND_STRING(" (now)"));
+        PushMenuItem(str, slot);
+    }
+}
+
+// Sets the ability slot picked in VAR_RESULT. gStringVar2 = new ability name.
+void Roguelite_SetMonAbility(void)
+{
+    struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][gSpecialVar_0x8004];
+    u32 slot = gSpecialVar_Result;
+
+    if (slot >= NUM_ABILITY_SLOTS)
+    {
+        gSpecialVar_Result = FALSE;
+        return;
+    }
+    SetMonData(mon, MON_DATA_ABILITY_NUM, &slot);
+    StringCopy(gStringVar2, gAbilitiesInfo[GetMonAbility(mon)].name);
+    gSpecialVar_Result = TRUE;
 }

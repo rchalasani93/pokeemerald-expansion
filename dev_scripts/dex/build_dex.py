@@ -227,6 +227,14 @@ def main():
             sid = ident(idx)
             if sid:
                 innates[sid] = [ident(v) for v in val.items if ident(v) in abilities]
+    # Regular abilities in game: gSpeciesAbilitiesTable overrides the species data
+    regular_init = cparse.find_array(tokens['innates'], 'gSpeciesAbilitiesTable')
+    regular = {}
+    if regular_init:
+        for idx, val in regular_init.indexed:
+            sid = ident(idx)
+            if sid:
+                regular[sid] = [ident(v) for v in val.items]
 
     # ---- species
     log('Reading species...')
@@ -245,6 +253,8 @@ def main():
         type_list = [ident(t) for t in val.get('types').items] if isinstance(val.get('types'), Init) else ['TYPE_NORMAL']
         type_list = [t for i, t in enumerate(type_list) if t and t not in type_list[:i]]
         abil = [ident(a) for a in val.get('abilities').items] if isinstance(val.get('abilities'), Init) else []
+        if sid in regular and any(a and a != 'ABILITY_NONE' for a in regular[sid]):
+            abil = regular[sid]
         evos = []
         if isinstance(val.get('evolutions'), Init):
             for e in val.get('evolutions').items:

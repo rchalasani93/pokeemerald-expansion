@@ -24,6 +24,8 @@ enum Ability GetBattlerInnate(enum BattlerId battler, u32 slot);
 enum Ability GetBattlerAbilityInSlot(enum BattlerId battler, enum Ability mainAbility, u32 slot);
 bool32 BattlerHasInnate(enum BattlerId battler, enum Ability ability);
 enum Ability GetAbilityForPopUp(enum BattlerId battler);
+bool32 MonHasAbility(struct Pokemon *mon, enum Ability ability);
+bool32 SpeciesHasInnate(enum Species species, enum Ability ability);
 enum Ability GetFirstAbilitySlotInList(enum BattlerId battler, enum Ability mainAbility, const u16 *list, u32 count);
 u32 AbilityBattleEffectsAllSlotsFiltered(enum AbilityEffect caseID, enum BattlerId battler, enum Ability mainAbility, enum Move move, bool32 shouldAbilityTrigger, bool32 (*filter)(enum Ability), bool32 *moreSlotsPending);
 u32 AbilityBattleEffectsFirstSlot(enum AbilityEffect caseID, enum BattlerId battler, enum Ability mainAbility, enum Move move, bool32 shouldAbilityTrigger, bool32 (*filter)(enum Ability));
@@ -39,7 +41,10 @@ extern u8 gTestInnatesCount;
 const u16 *Test_GetSpeciesInnates(enum Species species);
 #elif B_INNATES == TRUE
 extern const u16 gSpeciesInnatesTable[NUM_SPECIES][MAX_MON_INNATES];
+extern const u16 gSpeciesAbilitiesTable[NUM_SPECIES][NUM_ABILITY_SLOTS];
 #endif
+const u16 *Randomizer_GetInnates(enum Species species);
+bool32 Randomizer_InnatesOn(void);
 
 // Cheap global gate: FALSE means no innates can exist, so every check is a single compare.
 #if TESTING
@@ -59,6 +64,8 @@ static inline const u16 *GetSpeciesInnates(enum Species species)
 #elif B_INNATES == TRUE
     if (species >= NUM_SPECIES)
         return gNoInnates;
+    if (Randomizer_InnatesOn())
+        return Randomizer_GetInnates(species);
     return gSpeciesInnatesTable[species];
 #else
     (void)species;

@@ -7552,6 +7552,13 @@ static inline uq4_12_t GetDefenderAbilitiesModifier(struct DamageContext *ctx)
             recordAbility = TRUE;
         }
         break;
+    case ABILITY_AURA_GUARD: // Champions: halves damage from contact moves (not bypassed by Mold Breaker)
+        if (IsMoveMakingContact(ctx->battlerAtk, ctx->battlerDef, ctx->abilities[ctx->battlerAtk], ctx->holdEffects[ctx->battlerAtk], ctx->move))
+        {
+            modifier = uq4_12_multiply(modifier, UQ_4_12(0.5));
+            recordAbility = TRUE;
+        }
+        break;
     case ABILITY_FLUFFY:
         if (ctx->moveType == TYPE_FIRE && !IsMoveMakingContact(ctx->battlerAtk, ctx->battlerDef, ctx->abilities[ctx->battlerAtk], ctx->holdEffects[ctx->battlerAtk], ctx->move))
         {

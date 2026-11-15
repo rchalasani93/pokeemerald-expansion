@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "overworld.h"
 #include "battle_pyramid.h"
 #include "battle_setup.h"
@@ -1484,7 +1485,7 @@ void UpdateAmbientCry(s16 *state, u16 *delayCounter)
         for (i = 0; i < monsCount; i++)
         {
             if (!GetMonData(&gParties[B_TRAINER_PLAYER][i], MON_DATA_SANITY_IS_EGG)
-                && GetMonAbility(&gParties[B_TRAINER_PLAYER][0]) == ABILITY_SWARM)
+                && MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_SWARM))
             {
                 divBy = 2;
                 break;

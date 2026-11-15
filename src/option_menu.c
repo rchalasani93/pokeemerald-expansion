@@ -1,5 +1,6 @@
 #include "global.h"
 #include "option_menu.h"
+#include "randomizer.h"
 #include "bg.h"
 #include "gpu_regs.h"
 #include "international_string_util.h"
@@ -7,7 +8,9 @@
 #include "menu.h"
 #include "palette.h"
 #include "scanline_effect.h"
+#include "sound.h"
 #include "sprite.h"
+#include "constants/songs.h"
 #include "strings.h"
 #include "task.h"
 #include "text.h"
@@ -23,6 +26,17 @@
 #define tSound data[4]
 #define tButtonMode data[5]
 #define tWindowFrameType data[6]
+#define tPage data[7]
+#define tRandomizerOption(i) data[8 + (i)] // data[8..13]
+
+// Page 2 of the menu: Elite Redux-style randomizer toggles, saved per save file
+enum
+{
+    PAGE_GENERAL,
+    PAGE_RANDOMIZER,
+    PAGE_COUNT,
+};
+#define MENUITEM_RANDOMIZER_CANCEL RANDOMIZER_OPTION_COUNT
 
 enum
 {
@@ -69,10 +83,27 @@ static void ButtonMode_DrawChoices(u8 selection);
 static void DrawHeaderText(void);
 static void DrawOptionMenuTexts(void);
 static void DrawBgWindowFrames(void);
+static void DrawRandomizerPage(u8 taskId);
+static void SwitchPage(u8 taskId);
 
 EWRAM_DATA static bool8 sArrowPressed = FALSE;
 
 static const u8 gText_Option[]             = _("OPTION");
+static const u8 gText_RandomizerTitle[]    = _("RANDOMIZER");
+static const u8 gText_PageHint[]           = _("L/R: PAGE");
+static const u8 gText_RandomizerOn[]       = _("{COLOR GREEN}{SHADOW LIGHT_GREEN}ON");
+static const u8 gText_RandomizerOff[]      = _("{COLOR GREEN}{SHADOW LIGHT_GREEN}OFF");
+
+static const u8 *const sRandomizerItemNames[RANDOMIZER_OPTION_COUNT + 1] =
+{
+    [RANDOMIZE_ABILITIES]   = COMPOUND_STRING("ABILITIES"),
+    [RANDOMIZE_INNATES]     = COMPOUND_STRING("INNATES"),
+    [RANDOMIZE_TYPES]       = COMPOUND_STRING("TYPES"),
+    [RANDOMIZE_MOVES]       = COMPOUND_STRING("LEVEL-UP MOVES"),
+    [RANDOMIZE_STATS]       = COMPOUND_STRING("BASE STATS"),
+    [RANDOMIZE_RUN_POKEMON] = COMPOUND_STRING("RUN POKéMON"),
+    [MENUITEM_RANDOMIZER_CANCEL] = COMPOUND_STRING("CANCEL"),
+};
 static const u8 gText_TextSpeedSlow[]      = _("{COLOR GREEN}{SHADOW LIGHT_GREEN}SLOW");
 static const u8 gText_TextSpeedMid[]       = _("{COLOR GREEN}{SHADOW LIGHT_GREEN}MID");
 static const u8 gText_TextSpeedFast[]      = _("{COLOR GREEN}{SHADOW LIGHT_GREEN}FAST");
@@ -250,6 +281,9 @@ void CB2_InitOptionMenu(void)
         gTasks[taskId].tSound = gSaveBlock2Ptr->optionsSound;
         gTasks[taskId].tButtonMode = gSaveBlock2Ptr->optionsButtonMode;
         gTasks[taskId].tWindowFrameType = gSaveBlock2Ptr->optionsWindowFrameType;
+        gTasks[taskId].tPage = PAGE_GENERAL;
+        for (u32 i = 0; i < RANDOMIZER_OPTION_COUNT; i++)
+            gTasks[taskId].tRandomizerOption(i) = Randomizer_IsEnabled(i);
 
         TextSpeed_DrawChoices(gTasks[taskId].tTextSpeed);
         BattleScene_DrawChoices(gTasks[taskId].tBattleSceneOff);
@@ -277,8 +311,49 @@ static void Task_OptionMenuFadeIn(u8 taskId)
         gTasks[taskId].func = Task_OptionMenuProcessInput;
 }
 
+static void Task_OptionMenuProcessRandomizerInput(u8 taskId)
+{
+    u32 selection = gTasks[taskId].tMenuSelection;
+
+    if (JOY_NEW(A_BUTTON))
+    {
+        if (selection == MENUITEM_RANDOMIZER_CANCEL)
+            gTasks[taskId].func = Task_OptionMenuSave;
+    }
+    else if (JOY_NEW(B_BUTTON))
+    {
+        gTasks[taskId].func = Task_OptionMenuSave;
+    }
+    else if (JOY_NEW(DPAD_UP))
+    {
+        gTasks[taskId].tMenuSelection = selection > 0 ? selection - 1 : MENUITEM_RANDOMIZER_CANCEL;
+        HighlightOptionMenuItem(gTasks[taskId].tMenuSelection);
+    }
+    else if (JOY_NEW(DPAD_DOWN))
+    {
+        gTasks[taskId].tMenuSelection = selection < MENUITEM_RANDOMIZER_CANCEL ? selection + 1 : 0;
+        HighlightOptionMenuItem(gTasks[taskId].tMenuSelection);
+    }
+    else if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT) && selection < RANDOMIZER_OPTION_COUNT)
+    {
+        gTasks[taskId].tRandomizerOption(selection) ^= 1;
+        DrawRandomizerPage(taskId);
+    }
+}
+
 static void Task_OptionMenuProcessInput(u8 taskId)
 {
+    if (JOY_NEW(L_BUTTON | R_BUTTON))
+    {
+        SwitchPage(taskId);
+        return;
+    }
+    if (gTasks[taskId].tPage == PAGE_RANDOMIZER)
+    {
+        Task_OptionMenuProcessRandomizerInput(taskId);
+        return;
+    }
+
     if (JOY_NEW(A_BUTTON))
     {
         if (gTasks[taskId].tMenuSelection == MENUITEM_CANCEL)
@@ -372,6 +447,8 @@ static void Task_OptionMenuSave(u8 taskId)
     gSaveBlock2Ptr->optionsSound = gTasks[taskId].tSound;
     gSaveBlock2Ptr->optionsButtonMode = gTasks[taskId].tButtonMode;
     gSaveBlock2Ptr->optionsWindowFrameType = gTasks[taskId].tWindowFrameType;
+    for (u32 i = 0; i < RANDOMIZER_OPTION_COUNT; i++)
+        Randomizer_SetEnabled(i, gTasks[taskId].tRandomizerOption(i));
 
     BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
     gTasks[taskId].func = Task_OptionMenuFadeOut;
@@ -635,7 +712,57 @@ static void DrawHeaderText(void)
 {
     FillWindowPixelBuffer(WIN_HEADER, PIXEL_FILL(1));
     AddTextPrinterParameterized(WIN_HEADER, FONT_NORMAL, gText_Option, 8, 1, TEXT_SKIP_DRAW, NULL);
+    AddTextPrinterParameterized(WIN_HEADER, FONT_SMALL, gText_PageHint, GetStringRightAlignXOffset(FONT_SMALL, gText_PageHint, 200), 1, TEXT_SKIP_DRAW, NULL);
     CopyWindowToVram(WIN_HEADER, COPYWIN_FULL);
+}
+
+static void DrawRandomizerHeader(void)
+{
+    FillWindowPixelBuffer(WIN_HEADER, PIXEL_FILL(1));
+    AddTextPrinterParameterized(WIN_HEADER, FONT_NORMAL, gText_RandomizerTitle, 8, 1, TEXT_SKIP_DRAW, NULL);
+    AddTextPrinterParameterized(WIN_HEADER, FONT_SMALL, gText_PageHint, GetStringRightAlignXOffset(FONT_SMALL, gText_PageHint, 200), 1, TEXT_SKIP_DRAW, NULL);
+    CopyWindowToVram(WIN_HEADER, COPYWIN_FULL);
+}
+
+static void DrawRandomizerPage(u8 taskId)
+{
+    u32 i;
+
+    FillWindowPixelBuffer(WIN_OPTIONS, PIXEL_FILL(1));
+    for (i = 0; i <= MENUITEM_RANDOMIZER_CANCEL; i++)
+        AddTextPrinterParameterized(WIN_OPTIONS, FONT_NORMAL, sRandomizerItemNames[i], 8, (i * 16) + 1, TEXT_SKIP_DRAW, NULL);
+    for (i = 0; i < RANDOMIZER_OPTION_COUNT; i++)
+    {
+        bool32 on = gTasks[taskId].tRandomizerOption(i);
+        DrawOptionMenuChoice(gText_RandomizerOn, 104, i * 16, on);
+        DrawOptionMenuChoice(gText_RandomizerOff, GetStringRightAlignXOffset(FONT_NORMAL, gText_RandomizerOff, 198), i * 16, !on);
+    }
+    CopyWindowToVram(WIN_OPTIONS, COPYWIN_FULL);
+}
+
+static void SwitchPage(u8 taskId)
+{
+    gTasks[taskId].tPage = (gTasks[taskId].tPage + 1) % PAGE_COUNT;
+    gTasks[taskId].tMenuSelection = 0;
+    if (gTasks[taskId].tPage == PAGE_RANDOMIZER)
+    {
+        DrawRandomizerHeader();
+        DrawRandomizerPage(taskId);
+    }
+    else
+    {
+        DrawHeaderText();
+        DrawOptionMenuTexts();
+        TextSpeed_DrawChoices(gTasks[taskId].tTextSpeed);
+        BattleScene_DrawChoices(gTasks[taskId].tBattleSceneOff);
+        BattleStyle_DrawChoices(gTasks[taskId].tBattleStyle);
+        Sound_DrawChoices(gTasks[taskId].tSound);
+        ButtonMode_DrawChoices(gTasks[taskId].tButtonMode);
+        FrameType_DrawChoices(gTasks[taskId].tWindowFrameType);
+        CopyWindowToVram(WIN_OPTIONS, COPYWIN_FULL);
+    }
+    HighlightOptionMenuItem(0);
+    PlaySE(SE_SELECT);
 }
 
 static void DrawOptionMenuTexts(void)

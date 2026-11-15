@@ -1,4 +1,6 @@
 #include "global.h"
+#include "randomizer.h"
+#include "constants/roguelite.h"
 #include "clock.h"
 #include "new_game.h"
 #include "random.h"
@@ -135,6 +137,13 @@ static void ClearFrontierRecord(void)
 
 static void WarpToTruck(void)
 {
+    if (ROGUELITE_START_IN_HUB && !IS_FRLG)
+    {
+        // Roguelite: skip the story intro and start in the closed hub town
+        SetWarpDestination(MAP_GROUP(MAP_ROGUE_HUB), MAP_NUM(MAP_ROGUE_HUB), WARP_ID_NONE, 10, 10);
+        WarpIntoMap();
+        return;
+    }
     if (IS_FRLG)
         SetWarpDestination(MAP_GROUP(MAP_PALLET_TOWN_PLAYERS_HOUSE_2F), MAP_NUM(MAP_PALLET_TOWN_PLAYERS_HOUSE_2F), WARP_ID_NONE, 6, 6);
     else
@@ -169,6 +178,15 @@ void NewGameInitData(void)
 #if IS_FRLG
     StringCopy(rivalName, gSaveBlock1Ptr->rivalName);
 #endif
+    u32 randomizerOptions = 0;
+
+    // Keep randomizer options picked in the title screen's Options menu
+    for (u32 i = 0; i < RANDOMIZER_OPTION_COUNT; i++)
+    {
+        if (Randomizer_IsEnabled(i))
+            randomizerOptions |= 1 << i;
+    }
+
     gDifferentSaveFile = TRUE;
     gSaveBlock2Ptr->encryptionKey = 0;
     ZeroPlayerPartyMons();
@@ -234,6 +252,8 @@ void NewGameInitData(void)
     ResetItemFlags();
     ResetDexNav();
     ClearFollowerNPCData();
+    for (u32 i = 0; i < RANDOMIZER_OPTION_COUNT; i++)
+        Randomizer_SetEnabled(i, (randomizerOptions >> i) & 1);
 }
 
 static void ResetMiniGamesRecords(void)

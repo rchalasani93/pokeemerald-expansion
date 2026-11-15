@@ -261,6 +261,8 @@ static void PrintMonOTName(void);
 static void PrintMonOTID(void);
 static void PrintMonAbilityName(void);
 static void PrintMonAbilityDescription(void);
+static u32 CountViewableAbilities(void);
+static void ShowNextAbility(void);
 static void BufferMonTrainerMemo(void);
 static void PrintMonTrainerMemo(void);
 static void BufferNatureString(void);
@@ -1802,6 +1804,12 @@ static void Task_HandleInput(u8 taskId)
             StopPokemonAnimations();
             PlaySE(SE_SELECT);
             BeginCloseSummaryScreen(taskId);
+        }
+        else if (JOY_NEW(SELECT_BUTTON) && sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO
+              && !sMonSummaryScreen->summary.isEgg && CountViewableAbilities() > 1)
+        {
+            PlaySE(SE_SELECT);
+            ShowNextAbility();
         }
         else if (DEBUG_POKEMON_SPRITE_VISUALIZER && JOY_NEW(SELECT_BUTTON) && !gMain.inBattle)
         {
@@ -3525,44 +3533,81 @@ static void PrintMonOTID(void)
     }
 }
 
-static void PrintMonAbilityName(void)
+// Elite Redux-style abilities screen: on the Info page, SELECT steps the ability
+// box through the regular ability and each innate, with name and description.
+EWRAM_DATA static u8 sAbilityViewSlot = 0;
+EWRAM_DATA static u32 sAbilityViewPid = 0;
+static const u8 sText_InnatePrefix[] = _("Innate: ");
+static const u8 sText_AbilityViewCount[] = _("  {STR_VAR_1}/{STR_VAR_2}");
+
+static u32 CountViewableAbilities(void)
 {
-    enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].name, 0, 1, 0, 1);
-}
-
-static const u8 sText_InnatesPrefix[] = _("Innates: ");
-
-// Builds "Innates: A, B, C" for species with innates. Returns FALSE if there are none.
-static bool32 BufferSpeciesInnates(enum Species species, u8 *dst)
-{
-    u32 i, count = 0;
-    u8 *end = StringCopy(dst, sText_InnatesPrefix);
-
+    u32 i, count = 1;
     for (i = 0; i < MAX_MON_INNATES; i++)
     {
-        enum Ability innate = GetSpeciesInnate(species, i);
-        if (innate == ABILITY_NONE)
-            continue;
-        if (count++ != 0)
-        {
-            *end++ = CHAR_COMMA;
-            *end++ = CHAR_SPACE;
-        }
-        end = StringCopy(end, gAbilitiesInfo[innate].name);
+        if (GetSpeciesInnate(sMonSummaryScreen->summary.species, i) != ABILITY_NONE)
+            count++;
     }
-    return count != 0;
+    return count;
+}
+
+// Ability shown in the box: slot 0 is the regular ability, 1.. are innates.
+static enum Ability GetViewedAbility(void)
+{
+    u32 i, n = 0;
+
+    if (sAbilityViewPid != sMonSummaryScreen->summary.pid)
+    {
+        sAbilityViewPid = sMonSummaryScreen->summary.pid;
+        sAbilityViewSlot = 0;
+    }
+    if (sAbilityViewSlot != 0)
+    {
+        for (i = 0; i < MAX_MON_INNATES; i++)
+        {
+            enum Ability innate = GetSpeciesInnate(sMonSummaryScreen->summary.species, i);
+            if (innate != ABILITY_NONE && ++n == sAbilityViewSlot)
+                return innate;
+        }
+        sAbilityViewSlot = 0;
+    }
+    return GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
+}
+
+static void PrintMonAbilityName(void)
+{
+    enum Ability ability = GetViewedAbility();
+    u32 count = CountViewableAbilities();
+    u8 *end = gStringVar4;
+
+    if (sAbilityViewSlot != 0)
+        end = StringCopy(end, sText_InnatePrefix);
+    end = StringCopy(end, gAbilitiesInfo[ability].name);
+    if (count > 1)
+    {
+        ConvertIntToDecimalStringN(gStringVar1, sAbilityViewSlot + 1, STR_CONV_MODE_LEFT_ALIGN, 1);
+        ConvertIntToDecimalStringN(gStringVar2, count, STR_CONV_MODE_LEFT_ALIGN, 1);
+        StringExpandPlaceholders(end, sText_AbilityViewCount);
+    }
+    PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gStringVar4, 0, 1, 0, 1);
 }
 
 static void PrintMonAbilityDescription(void)
 {
-    enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
+    enum Ability ability = GetViewedAbility();
+    PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].description, 0, 17, 0, 0);
+}
 
-    // Elite Redux-style: Pokémon with innates list them under their ability
-    if (BufferSpeciesInnates(sMonSummaryScreen->summary.species, gStringVar4))
-        PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gStringVar4, 0, 17, 0, 0);
-    else
-        PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].description, 0, 17, 0, 0);
+static void ShowNextAbility(void)
+{
+    u8 windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY);
+
+    GetViewedAbility(); // resets the view when the shown Pokemon changed
+    sAbilityViewSlot = (sAbilityViewSlot + 1) % CountViewableAbilities();
+    FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
+    PrintMonAbilityName();
+    PrintMonAbilityDescription();
+    CopyWindowToVram(windowId, COPYWIN_GFX);
 }
 
 static void BufferMonTrainerMemo(void)

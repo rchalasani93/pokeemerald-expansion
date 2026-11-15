@@ -52,16 +52,16 @@
 #else
 
 #define FLAG_ROGUELITE_ACTIVE 0x20 // Roguelite run in progress
-#define FLAG_UNUSED_0x021    0x21 // Unused Flag
-#define FLAG_UNUSED_0x022    0x22 // Unused Flag
-#define FLAG_UNUSED_0x023    0x23 // Unused Flag
-#define FLAG_UNUSED_0x024    0x24 // Unused Flag
-#define FLAG_UNUSED_0x025    0x25 // Unused Flag
-#define FLAG_UNUSED_0x026    0x26 // Unused Flag
-#define FLAG_UNUSED_0x027    0x27 // Unused Flag
-#define FLAG_UNUSED_0x028    0x28 // Unused Flag
-#define FLAG_UNUSED_0x029    0x29 // Unused Flag
-#define FLAG_UNUSED_0x02A    0x2A // Unused Flag
+#define FLAG_RANDOMIZE_ABILITIES 0x21 // Randomizer option
+#define FLAG_RANDOMIZE_INNATES 0x22 // Randomizer option
+#define FLAG_RANDOMIZE_TYPES 0x23 // Randomizer option
+#define FLAG_RANDOMIZE_MOVES 0x24 // Randomizer option
+#define FLAG_RANDOMIZE_STATS 0x25 // Randomizer option
+#define FLAG_RANDOMIZE_RUN_POKEMON 0x26 // Randomizer option
+#define FLAG_ROGUE_HUB_MART 0x27 // Roguelite hub area built
+#define FLAG_ROGUE_HUB_HEALER 0x28 // Roguelite hub area built
+#define FLAG_ROGUE_HUB_TUTOR 0x29 // Roguelite hub area built
+#define FLAG_ROGUE_HUB_ABILITY_LAB 0x2A // Roguelite hub area built
 #define FLAG_UNUSED_0x02B    0x2B // Unused Flag
 #define FLAG_UNUSED_0x02C    0x2C // Unused Flag
 #define FLAG_UNUSED_0x02D    0x2D // Unused Flag

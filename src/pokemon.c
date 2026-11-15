@@ -1,4 +1,6 @@
 #include "global.h"
+#include "innates.h"
+#include "randomizer.h"
 #include "malloc.h"
 #include "apprentice.h"
 #include "battle.h"
@@ -3212,42 +3214,55 @@ u32 GetSpeciesWeight(enum Species species)
 
 enum Type GetSpeciesType(enum Species species, u8 slot)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].types[slot];
+    return Randomizer_GetType(SanitizeSpeciesId(species), slot);
 }
 
 enum Ability GetSpeciesAbility(enum Species species, u8 slot)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].abilities[slot];
+    enum Ability ability;
+
+    species = SanitizeSpeciesId(species);
+    if (slot >= NUM_ABILITY_SLOTS)
+        return ABILITY_NONE;
+#if B_INNATES == TRUE && !TESTING
+    // Elite Rogue: every species has abilities that never repeat its innates (src/data/pokemon/innates.h)
+    ability = gSpeciesAbilitiesTable[species][slot];
+    if (ability == ABILITY_NONE)
+        ability = gSpeciesInfo[species].abilities[slot];
+#else
+    ability = gSpeciesInfo[species].abilities[slot];
+#endif
+    return Randomizer_GetAbility(species, slot, ability);
 }
 
 u32 GetSpeciesBaseHP(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseHP;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_HP);
 }
 
 u32 GetSpeciesBaseAttack(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseAttack;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_ATK);
 }
 
 u32 GetSpeciesBaseDefense(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseDefense;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_DEF);
 }
 
 u32 GetSpeciesBaseSpAttack(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseSpAttack;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_SPATK);
 }
 
 u32 GetSpeciesBaseSpDefense(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseSpDefense;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_SPDEF);
 }
 
 u32 GetSpeciesBaseSpeed(enum Species species)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].baseSpeed;
+    return Randomizer_GetBaseStat(SanitizeSpeciesId(species), STAT_SPEED);
 }
 
 u32 GetSpeciesBaseStat(enum Species species, u32 statIndex)
@@ -3285,6 +3300,7 @@ const struct LevelUpMove *GetSpeciesLevelUpLearnset(enum Species species)
     const struct LevelUpMove *learnset = gSpeciesInfo[SanitizeSpeciesId(species)].levelUpLearnset;
     if (learnset == NULL)
         return gSpeciesInfo[SPECIES_NONE].levelUpLearnset;
+    learnset = Randomizer_GetLevelUpLearnset(SanitizeSpeciesId(species), learnset);
     return learnset;
 }
 
@@ -5386,14 +5402,12 @@ static s32 GetWildMonTableIdInAlteringCave(enum Species species)
 
 static inline bool32 CanFirstMonBoostHeldItemRarity(void)
 {
-    enum Ability ability;
     if (GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
         return FALSE;
 
-    ability = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
-    if (ability == ABILITY_COMPOUND_EYES)
+    if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_COMPOUND_EYES))
         return TRUE;
-    else if ((OW_SUPER_LUCK >= GEN_8) && ability == ABILITY_SUPER_LUCK)
+    else if ((OW_SUPER_LUCK >= GEN_8) && MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_SUPER_LUCK))
         return TRUE;
     return FALSE;
 }
@@ -6694,8 +6708,8 @@ void SavePlayerPartyMon(u32 index, struct Pokemon *mon)
 
 bool32 IsSpeciesOfType(enum Species species, enum Type type)
 {
-    if (gSpeciesInfo[species].types[0] == type
-     || gSpeciesInfo[species].types[1] == type)
+    if (GetSpeciesType(species, 0) == type
+     || GetSpeciesType(species, 1) == type)
         return TRUE;
     return FALSE;
 }

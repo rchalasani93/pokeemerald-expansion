@@ -12,19 +12,48 @@
 #define ROGUELITE_FINAL_WAVE        (ROGUELITE_WAVES_PER_BIOME * ROGUELITE_BIOME_COUNT)
 #define ROGUELITE_STARTER_BUDGET    10
 #define ROGUELITE_STARTER_LEVEL     5
-#define ROGUELITE_STARTER_CHOICES   5
 #define ROGUELITE_REWARD_CHOICES    3
+#define ROGUELITE_DRAFT_PAGE_SIZE   8
+#define ROGUELITE_DRAFT_OFFICE_BONUS 2   // extra draft points per Draft Office level
 
-// Menu ids returned by the starter draft menu (besides 0..ROGUELITE_STARTER_CHOICES-1)
-#define ROGUELITE_MENU_START_RUN    100
-#define ROGUELITE_MENU_REROLL       101
+// New games start in the closed roguelite hub instead of the truck intro
+#define ROGUELITE_START_IN_HUB      TRUE
+
+// Menu ids returned by the starter draft menu (besides list indexes)
+#define ROGUELITE_MENU_START_RUN    60000
+#define ROGUELITE_MENU_NEXT_PAGE    60001
+#define ROGUELITE_MENU_PREV_PAGE    60002
 
 // Results of Roguelite_PickStarter
 #define ROGUELITE_PICK_CONTINUE     0
 #define ROGUELITE_PICK_DONE         1
 #define ROGUELITE_PICK_TOO_EXPENSIVE 2
-#define ROGUELITE_PICK_REROLL       3
+#define ROGUELITE_PICK_PAGE         3
 #define ROGUELITE_PICK_NEED_ONE     4
+#define ROGUELITE_PICK_ALREADY      5
+
+// How a run ended (VAR_0x8004 for Roguelite_EndRun)
+#define ROGUELITE_END_LOST          0
+#define ROGUELITE_END_GAVE_UP       1
+#define ROGUELITE_END_WON           2
+
+#define ROGUELITE_MAX_COINS         9999
+
+// Hub areas built with Rogue Coins
+#define ROGUELITE_HUB_AREA_MART         0
+#define ROGUELITE_HUB_AREA_HEALER       1
+#define ROGUELITE_HUB_AREA_TUTOR        2
+#define ROGUELITE_HUB_AREA_ABILITY_LAB  3
+#define ROGUELITE_HUB_AREA_SUPPLY       4
+#define ROGUELITE_HUB_AREA_DRAFT        5
+#define ROGUELITE_HUB_AREA_COUNT        6
+#define ROGUELITE_HUB_MAX_LEVEL         3
+
+// Results of Roguelite_BuyHubArea
+#define ROGUELITE_BUILD_DONE        0
+#define ROGUELITE_BUILD_TOO_POOR    1
+#define ROGUELITE_BUILD_MAXED       2
+#define ROGUELITE_BUILD_CANCEL      3
 
 // Results of Roguelite_AfterWave
 #define ROGUELITE_WAVE_LOST         0

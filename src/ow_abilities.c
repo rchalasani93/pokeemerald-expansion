@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "ow_abilities.h"
 #include "pokemon.h"
 #include "random.h"
@@ -86,10 +87,9 @@ bool32 DoesLeadingMonHaveAbilityEffect(const enum Ability *abilityArray)
 {
     if (GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
         return FALSE;
-    enum Ability leadingMonAbility = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
     for (u32 i = 0; abilityArray[i] != ABILITY_NONE; i++)
     {
-        if (leadingMonAbility == abilityArray[i])
+        if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], abilityArray[i]))
             return TRUE;
     }
     return FALSE;
@@ -101,10 +101,9 @@ bool32 DoesPartyMemberHaveAbilityEffect(const enum Ability *abilityArray)
     {
         if (GetMonData(&gParties[B_TRAINER_PLAYER][j], MON_DATA_SANITY_IS_EGG))
             continue;
-        enum Ability monAbility = GetMonAbility(&gParties[B_TRAINER_PLAYER][j]);
         for (u32 i = 0; abilityArray[i] != ABILITY_NONE; i++)
         {
-            if (monAbility == abilityArray[i])
+            if (MonHasAbility(&gParties[B_TRAINER_PLAYER][j], abilityArray[i]))
                 return TRUE;
         }
     }

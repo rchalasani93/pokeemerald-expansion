@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "battle_setup.h"
 #include "battle_pike.h"
 #include "battle_pyramid.h"
@@ -395,8 +396,8 @@ u8 ChooseWildMonLevel(const struct WildPokemon *wildPokemon, u8 wildMonIndex, en
         // check ability for max level mon
         if (!GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
         {
-            enum Ability ability = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
-            if (ability == ABILITY_HUSTLE || ability == ABILITY_VITAL_SPIRIT || ability == ABILITY_PRESSURE)
+            struct Pokemon *lead = &gParties[B_TRAINER_PLAYER][0];
+            if (MonHasAbility(lead, ABILITY_HUSTLE) || MonHasAbility(lead, ABILITY_VITAL_SPIRIT) || MonHasAbility(lead, ABILITY_PRESSURE))
             {
                 if (Random() % 2 == 0)
                     return max;
@@ -613,27 +614,26 @@ static bool8 WildEncounterCheck(u32 encounterRate, bool8 ignoreAbility)
         encounterRate *= 2;
     if (!ignoreAbility && !GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
     {
-        enum Ability ability = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
 
-        if (ability == ABILITY_STENCH && gMapHeader.mapLayoutId == LAYOUT_BATTLE_FRONTIER_BATTLE_PYRAMID_FLOOR)
+        if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_STENCH) && gMapHeader.mapLayoutId == LAYOUT_BATTLE_FRONTIER_BATTLE_PYRAMID_FLOOR)
             encounterRate = encounterRate * 3 / 4;
-        else if (ability == ABILITY_STENCH)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_STENCH))
             encounterRate /= 2;
-        else if (ability == ABILITY_ILLUMINATE)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_ILLUMINATE))
             encounterRate *= 2;
-        else if (ability == ABILITY_WHITE_SMOKE)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_WHITE_SMOKE))
             encounterRate /= 2;
-        else if (ability == ABILITY_ARENA_TRAP)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_ARENA_TRAP))
             encounterRate *= 2;
-        else if (ability == ABILITY_SAND_VEIL && gSaveBlock1Ptr->weather == WEATHER_SANDSTORM)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_SAND_VEIL) && gSaveBlock1Ptr->weather == WEATHER_SANDSTORM)
             encounterRate /= 2;
-        else if (ability == ABILITY_SNOW_CLOAK && gSaveBlock1Ptr->weather == WEATHER_SNOW)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_SNOW_CLOAK) && gSaveBlock1Ptr->weather == WEATHER_SNOW)
             encounterRate /= 2;
-        else if (ability == ABILITY_QUICK_FEET)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_QUICK_FEET))
             encounterRate /= 2;
-        else if (ability == ABILITY_INFILTRATOR && OW_INFILTRATOR >= GEN_8)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_INFILTRATOR) && OW_INFILTRATOR >= GEN_8)
             encounterRate /= 2;
-        else if (ability == ABILITY_NO_GUARD)
+        else if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_NO_GUARD))
             encounterRate *= 2;
     }
     if (encounterRate > MAX_ENCOUNTER_RATE)
@@ -1088,13 +1088,10 @@ bool8 IsWildLevelAllowedByRepel(u8 wildLevel)
 
 bool8 IsAbilityAllowingEncounter(u8 level)
 {
-    enum Ability ability;
-
     if (GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
         return TRUE;
 
-    ability = GetMonAbility(&gParties[B_TRAINER_PLAYER][0]);
-    if (ability == ABILITY_KEEN_EYE || ability == ABILITY_INTIMIDATE)
+    if (MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_KEEN_EYE) || MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ABILITY_INTIMIDATE))
     {
         u8 playerMonLevel = GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_LEVEL);
         if (playerMonLevel > 5 && level <= playerMonLevel - 5 && !(Random() % 2))
@@ -1165,7 +1162,7 @@ static bool8 TryGetAbilityInfluencedWildMonIndex(const struct WildPokemon *wildM
 {
     if (GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SANITY_IS_EGG))
         return FALSE;
-    else if (GetMonAbility(&gParties[B_TRAINER_PLAYER][0]) != ability)
+    else if (!MonHasAbility(&gParties[B_TRAINER_PLAYER][0], ability))
         return FALSE;
     else if (Random() % 2 != 0)
         return FALSE;
