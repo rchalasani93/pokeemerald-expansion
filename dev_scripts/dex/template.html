@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Elite Rogue Dex</title>
+<style>
+:root {
+  --bg: #f2efe8; --panel: #fbfaf6; --ink: #1f1d1a; --muted: #6b665c; --line: #cfc8b8;
+  --accent: #1e7a4f; --accent-ink: #ffffff; --row: #ece8de; --sel: #dfeee6;
+  --low: #b5533c; --mid: #c9972b; --good: #1e7a4f; --great: #1b5e8a;
+  --head: Rockwell, "Roboto Slab", "Zilla Slab", Georgia, serif;
+  --body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1b1d1a; --panel: #232622; --ink: #e9e6dd; --muted: #a09a8c; --line: #3d423b;
+          --accent: #4fb083; --accent-ink: #10130f; --row: #2a2e29; --sel: #27402f; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--body); }
+button, input, select { font: inherit; color: inherit; }
+h1, h2, h3 { font-family: var(--head); margin: 0; font-weight: 700; }
+h1 { font-size: 19px; letter-spacing: .01em; }
+h2 { font-size: 22px; }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 22px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+.app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+header { display: flex; align-items: center; gap: 18px; padding: 8px 14px; border-bottom: 2px solid var(--ink); background: var(--panel); flex-wrap: wrap; }
+header p { margin: 0; color: var(--muted); font-size: 12px; }
+nav { display: flex; gap: 2px; flex-wrap: wrap; }
+nav button { background: none; border: 1px solid transparent; border-radius: 3px; padding: 5px 11px; cursor: pointer; }
+nav button:hover { background: var(--row); }
+nav button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+
+.panes { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; min-height: 0; }
+.list { border-right: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; min-height: 0; background: var(--panel); }
+.filters { padding: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.filters .wide { grid-column: 1 / -1; }
+.filters input, .filters select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); }
+.filters input:focus, .filters select:focus, button:focus-visible, .rowbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.count { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.rows { overflow-y: auto; min-height: 0; }
+.rowbtn { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 3px 10px; border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer; min-height: 46px; }
+.rowbtn.plain { grid-template-columns: 1fr auto; min-height: 34px; padding: 6px 10px; }
+.rowbtn:hover { background: var(--row); }
+.rowbtn[aria-current="true"] { background: var(--sel); }
+.rowbtn img { width: 40px; height: 40px; image-rendering: pixelated; }
+.rowbtn .sub { font-size: 12px; color: var(--muted); }
+.detail { overflow-y: auto; padding: 18px 22px 60px; min-height: 0; }
+.detail .inner { max-width: 880px; }
+.back { display: none; margin-bottom: 10px; background: none; border: 1px solid var(--line); border-radius: 3px; padding: 5px 10px; cursor: pointer; }
+
+.type { display: inline-block; min-width: 58px; text-align: center; padding: 1px 7px; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; margin-right: 3px; }
+.hero { display: grid; grid-template-columns: 128px 1fr; gap: 18px; align-items: start; }
+.hero img { width: 128px; height: 128px; image-rendering: pixelated; border: 1px solid var(--line); background: var(--panel); border-radius: 3px; }
+.hero .meta { margin: 6px 0; color: var(--muted); font-size: 13px; }
+.stats { display: grid; grid-template-columns: 44px 40px 1fr; gap: 3px 8px; align-items: center; max-width: 460px; }
+.bar { height: 10px; background: var(--row); border-radius: 2px; }
+.bar i { display: block; height: 100%; border-radius: 2px; }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+dl.kv dt { font-weight: 600; }
+dl.kv dd { margin: 0; }
+.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link:hover { color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.evo { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.evo .mon { display: flex; align-items: center; gap: 6px; }
+.evo img { width: 40px; height: 40px; image-rendering: pixelated; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+td.r, th.r { text-align: right; }
+.subtabs { display: flex; gap: 2px; margin-bottom: 6px; }
+.subtabs button { background: none; border: 1px solid var(--line); border-radius: 3px; padding: 3px 10px; cursor: pointer; }
+.subtabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.match { display: grid; grid-template-columns: 70px 1fr; gap: 5px 10px; }
+.empty { color: var(--muted); padding: 30px 0; }
+.party { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; background: var(--panel); }
+.card .top { display: flex; gap: 8px; align-items: center; }
+.card img { width: 48px; height: 48px; image-rendering: pixelated; }
+.card ul { margin: 6px 0 0; padding-left: 18px; }
+
+.panes.no-list { grid-template-columns: 1fr; }
+.panes.no-list .list { display: none; }
+
+@media (max-width: 760px) {
+  .panes { grid-template-columns: 1fr; }
+  .panes.showing-detail .list { display: none; }
+  .panes:not(.showing-detail) .detail { display: none; }
+  .back { display: inline-block; }
+  .hero { grid-template-columns: 96px 1fr; }
+  .hero img { width: 96px; height: 96px; }
+  .detail { padding: 12px 12px 60px; }
+  header p { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Elite Rogue Dex</h1>
+    <nav id="nav" role="tablist" aria-label="Sections"></nav>
+    <p id="summary"></p>
+  </header>
+  <div class="panes" id="panes">
+    <section class="list" aria-label="List">
+      <div class="filters" id="filters"></div>
+      <div class="rows" id="rows"></div>
+    </section>
+    <section class="detail" id="detail" aria-live="polite"></section>
+  </div>
+</div>
+<script type="application/json" id="dex-data">__DEX_DATA__</script>
+<script type="application/json" id="dex-sprites">__DEX_SPRITES__</script>
+<script>
+'use strict';
+// All game text is inserted with textContent / createTextNode. Nothing from the data is ever parsed as HTML.
+const D = JSON.parse(document.getElementById('dex-data').textContent);
+const SPRITES = JSON.parse(document.getElementById('dex-sprites').textContent);
+const TYPE_COLORS = { Normal:'#8a8a6b', Fighting:'#b23c31', Flying:'#7a8fd1', Poison:'#8e4a9c', Ground:'#b99a4a', Rock:'#9c8a3c',
+  Bug:'#8a9a22', Ghost:'#5d5a8c', Steel:'#7d8a99', Fire:'#d2622a', Water:'#3f7fc4', Grass:'#4f9a3c', Electric:'#c9a514',
+  Psychic:'#d1557a', Ice:'#4fa3a8', Dragon:'#5a4fc0', Dark:'#5c4a3e', Fairy:'#c46a9c' };
+const STAT_NAMES = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'];
+const SECTIONS = ['species', 'moves', 'abilities', 'locations', 'trainers', 'run'];
+const LABELS = { species: 'Species', moves: 'Moves', abilities: 'Abilities', locations: 'Locations', trainers: 'Trainers', run: 'Run' };
+
+// ---------- small DOM helpers ----------
+function el(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'onclick') node.addEventListener('click', v);
+    else if (k === 'oninput') node.addEventListener('input', v);
+    else if (k === 'onchange') node.addEventListener('change', v);
+    else node.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    node.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+  }
+  return node;
+}
+const clear = node => { while (node.firstChild) node.removeChild(node.firstChild); };
+const typeChip = t => { const c = el('span', { class: 'type' }, D.types[t]); c.style.background = TYPE_COLORS[D.types[t]] || '#777'; return c; };
+const link = (text, hash) => el('button', { class: 'link', type: 'button', onclick: () => { location.hash = hash; } }, text);
+const fullName = s => s.f ? s.n + ' (' + s.f + ')' : s.n;
+const bst = s => s.s.reduce((a, b) => a + b, 0);
+function sprite(i, size) {
+  const src = SPRITES[i];
+  if (!src) return el('span', { class: 'muted' }, '');
+  const img = el('img', { src, alt: '', loading: 'lazy', width: size, height: size });
+  return img;
+}
+const norm = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '');
+
+// ---------- derived indexes ----------
+const speciesByAbility = D.abilities.map(() => []), speciesByInnate = D.abilities.map(() => []);
+const learners = D.moves.map(() => ({ lv: [], tm: [], eg: [] }));
+D.species.forEach((s, i) => {
+  new Set(s.a.filter(a => a >= 0)).forEach(a => speciesByAbility[a].push(i));
+  s.i.forEach(a => speciesByInnate[a].push(i));
+  s.lv.forEach(([lvl, m]) => learners[m].lv.push([i, lvl]));
+  s.tm.forEach(m => learners[m].tm.push(i));
+  s.eg.forEach(m => learners[m].eg.push(i));
+  s.moveSet = new Set([...s.lv.map(x => x[1]), ...s.tm, ...s.eg]);
+});
+const foundAt = D.species.map(() => []);
+D.locations.forEach((loc, li) => loc.mons.forEach(([method, sp, lo, hi]) => foundAt[sp].push([li, method, lo, hi])));
+const runInfo = D.species.map(() => ({ biomes: [], boss: [], cost: null }));
+if (D.run) {
+  D.run.biomes.forEach(b => { b.wild.forEach(i => runInfo[i].biomes.push(b.name)); b.boss.forEach(i => runInfo[i].boss.push(b.name)); });
+  D.run.starters.forEach(([i, c]) => { runInfo[i].cost = c; });
+}
+
+// ---------- state ----------
+const state = { section: 'species', id: null, filters: { species: { q: '', t1: '', t2: '', ab: '', mv: '', sort: 'dex' }, moves: { q: '', t: '', cat: '' }, abilities: { q: '' }, locations: { q: '' }, trainers: { q: '' } }, learnTab: 'lv' };
+const $nav = document.getElementById('nav'), $filters = document.getElementById('filters'), $rows = document.getElementById('rows'),
+      $detail = document.getElementById('detail'), $panes = document.getElementById('panes');
+document.getElementById('summary').textContent = D.species.length + ' species, ' + D.moves.length + ' moves, ' + D.abilities.length + ' abilities. Built from the game data, works offline.';
+
+SECTIONS.forEach(sec => {
+  if (sec === 'run' && !D.run) return;
+  $nav.appendChild(el('button', { type: 'button', role: 'tab', id: 'tab-' + sec, onclick: () => { location.hash = sec; } }, LABELS[sec]));
+});
+
+// ---------- filters ----------
+function input(placeholder, value, onInput, listId) {
+  return el('input', { type: 'search', placeholder, value, list: listId, 'aria-label': placeholder, oninput: e => onInput(e.target.value) });
+}
+function select(label, options, value, onChange) {
+  const s = el('select', { 'aria-label': label, onchange: e => onChange(e.target.value) }, options.map(([v, text]) => el('option', { value: v }, text)));
+  s.value = value;
+  return s;
+}
+function datalist(id, names) {
+  if (document.getElementById(id)) return;
+  document.body.appendChild(el('datalist', { id }, names.map(n => el('option', { value: n }))));
+}
+function buildFilters() {
+  clear($filters);
+  const f = state.filters[state.section];
+  const again = () => renderRows();
+  const typeOpts = [['', 'Any type'], ...D.types.map((t, i) => [String(i), t])];
+  if (state.section === 'species') {
+    datalist('dl-abilities', D.abilities.map(a => a[0]));
+    datalist('dl-moves', D.moves.map(m => m[0]));
+    const q = input('Search name or number', f.q, v => { f.q = v; again(); }); q.classList.add('wide');
+    $filters.append(q,
+      select('Type 1', typeOpts, f.t1, v => { f.t1 = v; again(); }),
+      select('Type 2', typeOpts, f.t2, v => { f.t2 = v; again(); }),
+      input('Ability or innate', f.ab, v => { f.ab = v; again(); }, 'dl-abilities'),
+      input('Learns move', f.mv, v => { f.mv = v; again(); }, 'dl-moves'));
+    const sort = select('Sort by', [['dex', 'Sort: Dex number'], ['name', 'Sort: Name'], ['bst', 'Sort: Base stat total'], ...STAT_NAMES.map((n, i) => ['s' + i, 'Sort: ' + n])], f.sort, v => { f.sort = v; again(); });
+    sort.classList.add('wide');
+    $filters.append(sort);
+  } else if (state.section === 'moves') {
+    const q = input('Search move', f.q, v => { f.q = v; again(); }); q.classList.add('wide');
+    $filters.append(q, select('Type', typeOpts, f.t, v => { f.t = v; again(); }),
+      select('Category', [['', 'Any category'], ['Physical', 'Physical'], ['Special', 'Special'], ['Status', 'Status']], f.cat, v => { f.cat = v; again(); }));
+  } else if (state.section !== 'run') {
+    const what = { abilities: 'Search ability or its effect', locations: 'Search map or Pokémon', trainers: 'Search trainer, class or Pokémon' }[state.section];
+    const q = input(what, f.q, v => { f.q = v; again(); }); q.classList.add('wide');
+    $filters.append(q);
+  }
+  $filters.appendChild(el('div', { class: 'count', id: 'count' }));
+}
+
+// ---------- list rows ----------
+function matchIndex(names, text) {
+  const q = norm(text);
+  if (!q) return null;
+  const exact = names.findIndex(n => norm(n) === q);
+  if (exact >= 0) return new Set([exact]);
+  return new Set(names.map((n, i) => norm(n).includes(q) ? i : -1).filter(i => i >= 0));
+}
+function speciesMatches() {
+  const f = state.filters.species, q = norm(f.q);
+  const abSet = matchIndex(D.abilities.map(a => a[0]), f.ab), mvSet = matchIndex(D.moves.map(m => m[0]), f.mv);
+  let out = [];
+  D.species.forEach((s, i) => {
+    if (q && !(norm(fullName(s)).includes(q) || String(s.d) === q)) return;
+    if (f.t1 !== '' && !s.t.includes(+f.t1)) return;
+    if (f.t2 !== '' && !s.t.includes(+f.t2)) return;
+    if (abSet && !(s.a.some(a => abSet.has(a)) || s.i.some(a => abSet.has(a)))) return;
+    if (mvSet && ![...mvSet].some(m => s.moveSet.has(m))) return;
+    out.push(i);
+  });
+  const key = f.sort;
+  if (key === 'name') out.sort((a, b) => fullName(D.species[a]).localeCompare(fullName(D.species[b])));
+  else if (key === 'bst') out.sort((a, b) => bst(D.species[b]) - bst(D.species[a]));
+  else if (key[0] === 's') out.sort((a, b) => D.species[b].s[+key[1]] - D.species[a].s[+key[1]]);
+  return out;
+}
+function rowButton(hash, current, plain, ...kids) {
+  const b = el('button', { type: 'button', class: 'rowbtn' + (plain ? ' plain' : ''), 'aria-current': current ? 'true' : null, onclick: () => { location.hash = hash; } }, kids);
+  b.dataset.id = hash.split('/')[1]; // lets route() move the selection without re-rendering the list
+  return b;
+}
+function renderRows() {
+  clear($rows);
+  const sec = state.section, frag = document.createDocumentFragment();
+  let n = 0;
+  if (sec === 'species') {
+    speciesMatches().forEach(i => {
+      const s = D.species[i]; n++;
+      frag.appendChild(rowButton('species/' + i, state.id === i, false, sprite(i, 40),
+        el('span', null, el('div', null, fullName(s)), el('div', { class: 'sub' }, s.t.map(typeChip))),
+        el('span', { class: 'num muted' }, bst(s))));
+    });
+  } else if (sec === 'moves') {
+    const f = state.filters.moves, q = norm(f.q);
+    D.moves.forEach((m, i) => {
+      if (q && !norm(m[0]).includes(q)) return;
+      if (f.t !== '' && m[1] !== +f.t) return;
+      if (f.cat && m[2] !== f.cat) return;
+      n++;
+      frag.appendChild(rowButton('moves/' + i, state.id === i, true,
+        el('span', null, el('div', null, m[0]), el('div', { class: 'sub' }, typeChip(m[1]), m[2])),
+        el('span', { class: 'num muted' }, m[3] > 1 ? m[3] : '')));
+    });
+  } else if (sec === 'abilities') {
+    const q = norm(state.filters.abilities.q);
+    D.abilities.forEach((a, i) => {
+      if (q && !(norm(a[0]).includes(q) || norm(a[1]).includes(q))) return;
+      n++;
+      frag.appendChild(rowButton('abilities/' + i, state.id === i, true,
+        el('span', null, el('div', null, a[0]), el('div', { class: 'sub' }, a[1])),
+        el('span', { class: 'num muted' }, speciesByAbility[i].length + speciesByInnate[i].length)));
+    });
+  } else if (sec === 'locations') {
+    const q = norm(state.filters.locations.q);
+    D.locations.forEach((loc, i) => {
+      if (q && !(norm(loc.map).includes(q) || loc.mons.some(m => norm(D.species[m[1]].n).includes(q)))) return;
+      n++;
+      frag.appendChild(rowButton('locations/' + i, state.id === i, true, el('span', null, loc.map), el('span', { class: 'num muted' }, loc.mons.length)));
+    });
+  } else if (sec === 'trainers') {
+    const q = norm(state.filters.trainers.q);
+    D.trainers.forEach((t, i) => {
+      if (q && !(norm(t.n + ' ' + t.c).includes(q) || t.p.some(p => norm(p[0] >= 0 ? D.species[p[0]].n : p[1]).includes(q)))) return;
+      n++;
+      frag.appendChild(rowButton('trainers/' + i, state.id === i, true,
+        el('span', null, el('div', null, (t.c ? t.c + ' ' : '') + t.n), el('div', { class: 'sub' }, t.p.map(p => p[0] >= 0 ? D.species[p[0]].n : p[1]).join(', '))),
+        el('span', { class: 'num muted' }, t.p.length)));
+    });
+  }
+  $rows.appendChild(frag);
+  const count = document.getElementById('count');
+  if (count) count.textContent = sec === 'run' ? '' : n + ' shown';
+}
+
+// ---------- detail views ----------
+function section(title, ...kids) { return [el('h3', null, title), ...kids]; }
+function statRows(stats) {
+  const box = el('div', { class: 'stats' });
+  stats.forEach((v, i) => {
+    const fill = el('i'); fill.style.width = Math.min(100, v / 2.55) + '%';
+    fill.style.background = v < 60 ? 'var(--low)' : v < 90 ? 'var(--mid)' : v < 120 ? 'var(--good)' : 'var(--great)';
+    box.append(el('span', { class: 'muted' }, STAT_NAMES[i]), el('span', { class: 'num' }, v), el('div', { class: 'bar' }, fill));
+  });
+  box.append(el('span', { class: 'muted' }, 'Total'), el('span', { class: 'num' }, stats.reduce((a, b) => a + b, 0)), el('span'));
+  return box;
+}
+function matchups(types) {
+  const groups = {};
+  D.types.forEach((name, atk) => {
+    const mult = types.reduce((m, def) => m * D.chart[atk][def], 1);
+    if (mult !== 1) (groups[mult] = groups[mult] || []).push(atk);
+  });
+  const order = [4, 2, 0.5, 0.25, 0];
+  const labels = { 4: 'Takes 4x', 2: 'Takes 2x', 0.5: 'Takes 1/2', 0.25: 'Takes 1/4', 0: 'Immune' };
+  const box = el('div', { class: 'match' });
+  order.forEach(m => { if (groups[m]) box.append(el('span', { class: 'muted' }, labels[m]), el('div', null, groups[m].map(typeChip))); });
+  return box;
+}
+function moveTable(rows, withLevel) {
+  if (!rows.length) return el('p', { class: 'muted' }, 'None.');
+  return el('table', null,
+    el('thead', null, el('tr', null, withLevel && el('th', { class: 'r' }, 'Lv'), el('th', null, 'Move'), el('th', null, 'Type'), el('th', null, 'Cat'),
+      el('th', { class: 'r' }, 'Pow'), el('th', { class: 'r' }, 'Acc'), el('th', { class: 'r' }, 'PP'))),
+    el('tbody', null, rows.map(([lvl, mi]) => { const m = D.moves[mi]; return el('tr', null,
+      withLevel && el('td', { class: 'r num' }, lvl <= 0 ? 'Evo' : lvl), el('td', null, link(m[0], 'moves/' + mi)), el('td', null, typeChip(m[1])), el('td', null, m[2]),
+      el('td', { class: 'r num' }, m[3] > 1 ? m[3] : '-'), el('td', { class: 'r num' }, m[4] ? m[4] : '-'), el('td', { class: 'r num' }, m[5])); })));
+}
+function monLink(i, extra) {
+  return el('span', { class: 'mon' }, sprite(i, 40), link(fullName(D.species[i]), 'species/' + i), extra ? el('span', { class: 'muted' }, extra) : null);
+}
+function speciesChips(list) {
+  if (!list.length) return el('p', { class: 'muted' }, 'None.');
+  return el('div', { class: 'chips' }, list.map(i => link(fullName(D.species[i]), 'species/' + i)));
+}
+function abilityLine(a, tag) {
+  return [el('dt', null, link(D.abilities[a][0], 'abilities/' + a), tag ? el('span', { class: 'muted' }, ' ' + tag) : null), el('dd', null, D.abilities[a][1])];
+}
+
+function viewSpecies(i) {
+  const s = D.species[i], out = [];
+  out.push(el('div', { class: 'hero' }, sprite(i, 128), el('div', null,
+    el('h2', null, fullName(s)),
+    el('div', { class: 'meta' }, '#' + String(s.d).padStart(4, '0'), s.c ? ' · ' + s.c + ' Pokémon' : '', ' · ', (s.h / 10).toFixed(1) + ' m, ' + (s.w / 10).toFixed(1) + ' kg'),
+    el('div', null, s.t.map(typeChip)),
+    s.x ? el('p', null, s.x) : null)));
+  out.push(...section('Base stats', statRows(s.s)));
+
+  const abil = el('dl', { class: 'kv' });
+  const seen = new Set();
+  s.a.forEach((a, slot) => { if (a >= 0 && !(seen.has(a) && slot < 2)) { abil.append(...abilityLine(a, slot === 2 ? '(hidden)' : '')); seen.add(a); } });
+  out.push(...section('Abilities', abil));
+  if (s.i.length) {
+    const inn = el('dl', { class: 'kv' });
+    s.i.forEach(a => inn.append(...abilityLine(a)));
+    out.push(...section('Innates (always active)', inn));
+  }
+  out.push(...section('Type matchups', matchups(s.t)));
+
+  // evolution line: walk back to the first stage, then forward
+  let root = i; const guard = new Set();
+  while (D.species[root].p >= 0 && !guard.has(root)) { guard.add(root); root = D.species[root].p; }
+  const line = el('div', { class: 'evo' });
+  (function walk(n, how, depth) {
+    if (depth > 6) return;
+    line.append(monLink(n, how ? '(' + how + ')' : ''));
+    D.species[n].e.forEach(([t, h]) => walk(t, h, depth + 1));
+  })(root, '', 0);
+  if (line.children.length > 1) out.push(...section('Evolution', line));
+
+  // learnsets
+  const tabs = [['lv', 'Level up', s.lv.length], ['tm', 'TM / Tutor', s.tm.length], ['eg', 'Egg', s.eg.length]];
+  const holder = el('div');
+  const bar = el('div', { class: 'subtabs', role: 'tablist' }, tabs.map(([k, label, n]) => el('button', { type: 'button', role: 'tab', 'aria-selected': state.learnTab === k ? 'true' : 'false',
+    onclick: () => { state.learnTab = k; renderDetail(); } }, label + ' ' + n)));
+  holder.append(bar, state.learnTab === 'lv' ? moveTable(s.lv, true) : moveTable(s[state.learnTab].map(m => [0, m]), false));
+  out.push(...section('Moves', holder));
+
+  if (foundAt[i].length) {
+    out.push(...section('Wild locations', el('table', null, el('tbody', null, foundAt[i].map(([li, method, lo, hi]) =>
+      el('tr', null, el('td', null, link(D.locations[li].map, 'locations/' + li)), el('td', null, method), el('td', { class: 'r num' }, lo === hi ? 'Lv ' + lo : 'Lv ' + lo + '-' + hi)))))));
+  }
+  const r = runInfo[i];
+  if (r.cost != null || r.biomes.length || r.boss.length) {
+    const kv = el('dl', { class: 'kv' });
+    if (r.cost != null) kv.append(el('dt', null, 'Draft cost'), el('dd', null, r.cost + ' of 10 points'));
+    if (r.biomes.length) kv.append(el('dt', null, 'Wild waves'), el('dd', null, r.biomes.join(', ')));
+    if (r.boss.length) kv.append(el('dt', null, 'Boss pool'), el('dd', null, r.boss.join(', ')));
+    out.push(...section('In a run', kv));
+  }
+  const misc = el('dl', { class: 'kv' });
+  misc.append(el('dt', null, 'Catch rate'), el('dd', { class: 'num' }, s.r), el('dt', null, 'Egg groups'), el('dd', null, s.g.join(', ') || 'None'));
+  out.push(...section('Other', misc));
+  return out;
+}
+function viewMove(i) {
+  const m = D.moves[i], L = learners[i];
+  const kv = el('dl', { class: 'kv' });
+  kv.append(el('dt', null, 'Type'), el('dd', null, typeChip(m[1])), el('dt', null, 'Category'), el('dd', null, m[2]),
+    el('dt', null, 'Power'), el('dd', { class: 'num' }, m[3] > 1 ? m[3] : '-'), el('dt', null, 'Accuracy'), el('dd', { class: 'num' }, m[4] ? m[4] : 'Never misses'),
+    el('dt', null, 'PP'), el('dd', { class: 'num' }, m[5]), el('dt', null, 'Priority'), el('dd', { class: 'num' }, m[6] > 0 ? '+' + m[6] : m[6]));
+  if (m[8].length) kv.append(el('dt', null, 'Flags'), el('dd', null, m[8].join(', ')));
+  return [el('h2', null, m[0]), el('p', null, m[7]), kv,
+    ...section('Learned by level up (' + L.lv.length + ')', L.lv.length ? el('div', { class: 'chips' }, L.lv.map(([sp, lvl]) => el('span', null, link(fullName(D.species[sp]), 'species/' + sp), el('span', { class: 'muted num' }, ' ' + (lvl <= 0 ? 'Evo' : lvl))))) : el('p', { class: 'muted' }, 'None.')),
+    ...section('Learned by TM / Tutor (' + L.tm.length + ')', speciesChips(L.tm)),
+    ...section('Egg move (' + L.eg.length + ')', speciesChips(L.eg))];
+}
+function viewAbility(i) {
+  const a = D.abilities[i];
+  return [el('h2', null, a[0]), el('p', null, a[1]),
+    ...section('As an innate (' + speciesByInnate[i].length + ')', speciesChips(speciesByInnate[i])),
+    ...section('As a regular ability (' + speciesByAbility[i].length + ')', speciesChips(speciesByAbility[i]))];
+}
+function viewLocation(i) {
+  const loc = D.locations[i];
+  return [el('h2', null, loc.map), el('table', null,
+    el('thead', null, el('tr', null, el('th', null, 'Method'), el('th', null, 'Pokémon'), el('th', null, 'Type'), el('th', { class: 'r' }, 'Level'))),
+    el('tbody', null, loc.mons.map(([method, sp, lo, hi]) => el('tr', null, el('td', null, method), el('td', null, monLink(sp)), el('td', null, D.species[sp].t.map(typeChip)),
+      el('td', { class: 'r num' }, lo === hi ? lo : lo + '-' + hi)))))];
+}
+function viewTrainer(i) {
+  const t = D.trainers[i];
+  return [el('h2', null, (t.c ? t.c + ' ' : '') + t.n), el('p', { class: 'muted' }, (t.db ? 'Double battle. ' : '') + t.id),
+    el('div', { class: 'party' }, t.p.map(([sp, raw, lvl, item, ability, moves]) => el('div', { class: 'card' },
+      el('div', { class: 'top' }, sp >= 0 ? sprite(sp, 48) : null, el('div', null,
+        el('div', null, sp >= 0 ? link(fullName(D.species[sp]), 'species/' + sp) : raw, lvl ? el('span', { class: 'muted num' }, ' Lv ' + lvl) : null),
+        el('div', { class: 'sub muted' }, [item, ability].filter(Boolean).join(' · ')))),
+      moves.length ? el('ul', null, moves.map(mv => el('li', null, mv))) : el('div', { class: 'muted' }, 'Default level-up moves'))))];
+}
+function viewRun() {
+  const R = D.run, out = [el('h2', null, 'Roguelite run')];
+  out.push(el('p', null, 'Talk to the scientist on the east side of Littleroot Town. Draft a team with 10 points, clear 50 waves across five biomes, pick one of three rewards after each wave. Every 10th wave is a boss. Between waves you choose a wild route, a trainer route (better rewards) or, on some waves, a rest stop.'));
+  out.push(...section('Biomes', el('table', null,
+    el('thead', null, el('tr', null, el('th', null, 'Waves'), el('th', null, 'Biome'), el('th', null, 'Wild pool'), el('th', null, 'Boss pool'))),
+    el('tbody', null, R.biomes.map((b, n) => el('tr', null, el('td', { class: 'num' }, (n * 10 + 1) + '-' + (n * 10 + 10)), el('td', null, b.name),
+      el('td', null, el('div', { class: 'chips' }, b.wild.map(i => link(D.species[i].n, 'species/' + i)))),
+      el('td', null, el('div', { class: 'chips' }, b.boss.map(i => link(D.species[i].n, 'species/' + i))))))))));
+  if (R.finalBoss >= 0) out.push(el('p', null, 'Final boss on wave 50: ', link(fullName(D.species[R.finalBoss]), 'species/' + R.finalBoss), '.'));
+  const byCost = {};
+  R.starters.forEach(([i, c]) => (byCost[c] = byCost[c] || []).push(i));
+  out.push(...section('Draft pool (cost in points)', el('table', null, el('tbody', null, Object.keys(byCost).sort((a, b) => a - b).map(c =>
+    el('tr', null, el('td', { class: 'num' }, c), el('td', null, el('div', { class: 'chips' }, byCost[c].map(i => link(D.species[i].n, 'species/' + i))))))))));
+  const byTier = {};
+  R.rewards.forEach(([name, qty, tier]) => (byTier[tier] = byTier[tier] || []).push(qty > 1 ? qty + 'x ' + name : name));
+  out.push(...section('Rewards by tier', el('dl', { class: 'kv' }, ['Common', 'Great', 'Ultra', 'Rogue'].filter(t => byTier[t]).flatMap(t => [el('dt', null, t), el('dd', null, byTier[t].join(', '))]))));
+  return out;
+}
+
+function renderDetail() {
+  clear($detail);
+  const inner = el('div', { class: 'inner' });
+  const sec = state.section, id = state.id;
+  if (sec !== 'run') inner.appendChild(el('button', { type: 'button', class: 'back', onclick: () => { location.hash = state.section; } }, 'Back to list'));
+  const lists = { species: D.species, moves: D.moves, abilities: D.abilities, locations: D.locations, trainers: D.trainers };
+  if (sec === 'run') inner.append(...viewRun());
+  else if (id == null || !lists[sec][id]) inner.appendChild(el('p', { class: 'empty' }, 'Pick an entry from the list.'));
+  else inner.append(...({ species: viewSpecies, moves: viewMove, abilities: viewAbility, locations: viewLocation, trainers: viewTrainer }[sec])(id));
+  $detail.appendChild(inner);
+  $detail.scrollTop = 0;
+}
+
+// ---------- routing ----------
+function route() {
+  const [secRaw, idRaw] = location.hash.replace(/^#/, '').split('/');
+  const sec = SECTIONS.includes(secRaw) && (secRaw !== 'run' || D.run) ? secRaw : 'species';
+  const id = /^\d+$/.test(idRaw || '') ? +idRaw : null;
+  const sectionChanged = sec !== state.section || !$filters.firstChild;
+  state.section = sec; state.id = id;
+  SECTIONS.forEach(s => { const b = document.getElementById('tab-' + s); if (b) b.setAttribute('aria-selected', s === sec ? 'true' : 'false'); });
+  $panes.classList.toggle('showing-detail', id != null || sec === 'run');
+  $panes.classList.toggle('no-list', sec === 'run');
+  if (sectionChanged) { buildFilters(); renderRows(); }
+  else $rows.querySelectorAll('[aria-current]').forEach(n => n.removeAttribute('aria-current'));
+  renderDetail();
+  if (!sectionChanged && id != null) {
+    const kids = $rows.children;
+    for (const k of kids) if (k.dataset.id === String(id)) { k.setAttribute('aria-current', 'true'); break; }
+  }
+}
+window.addEventListener('hashchange', route);
+if (!location.hash) history.replaceState(null, '', '#species/0');
+route();
+</script>
+</body>
+</html>
