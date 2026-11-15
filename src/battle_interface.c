@@ -4,6 +4,7 @@
 #include "pokemon.h"
 #include "battle_controllers.h"
 #include "battle_interface.h"
+#include "innates.h"
 #include "battle_z_move.h"
 #include "graphics.h"
 #include "sprite.h"
@@ -2710,7 +2711,7 @@ void UpdateAbilityPopup(enum BattlerId battler)
 {
     u8 *spriteIds = gBattleStruct->abilityPopUpSpriteIds[battler];
     enum Ability ability = (gBattleScripting.abilityPopupOverwrite) ? gBattleScripting.abilityPopupOverwrite
-                                                           : gBattleMons[battler].ability;
+                                                           : GetAbilityForPopUp(battler);
     PrintAbilityOnAbilityPopUp(ability, spriteIds[0], spriteIds[1]);
 }
 

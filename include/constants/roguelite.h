@@ -32,4 +32,16 @@
 #define ROGUELITE_WAVE_RUN_WON      2
 #define ROGUELITE_WAVE_BOSS_FLED    3
 
+// Routes (Emerald Rogue-style path choice between waves)
+#define ROGUELITE_ROUTE_WILD        0
+#define ROGUELITE_ROUTE_TRAINER     1
+#define ROGUELITE_ROUTE_REST        2
+
+// Results of Roguelite_PrepareWave
+#define ROGUELITE_WAVE_KIND_WILD    0
+#define ROGUELITE_WAVE_KIND_BOSS    1
+#define ROGUELITE_WAVE_KIND_FINAL   2
+#define ROGUELITE_WAVE_KIND_TRAINER 3
+#define ROGUELITE_WAVE_KIND_REST    4
+
 #endif // GUARD_CONSTANTS_ROGUELITE_H

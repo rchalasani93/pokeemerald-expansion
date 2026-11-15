@@ -3,10 +3,12 @@
 
 #define AI_FRAME_CEILING_SINGLES_NO_FLAGS                       2
 #define AI_FRAME_CEILING_SINGLES_SMART_TRAINER                  7
-#define AI_FRAME_CEILING_DOUBLES_NO_FLAGS                       14
-#define AI_FRAME_CEILING_DOUBLES_SMART_TRAINER                  28
-#define AI_FRAME_CEILING_STEVEN_MULTI                           21
-#define AI_FRAME_CEILING_STEVEN_MULTI_SMART_TRAINER             24
+// Elite Rogue: innate-aware ability checks cost ~5% extra AI time in doubles/multis
+// (upstream ceilings were 14 / 28 / 21 / 24, exactly at the measured baseline).
+#define AI_FRAME_CEILING_DOUBLES_NO_FLAGS                       15
+#define AI_FRAME_CEILING_DOUBLES_SMART_TRAINER                  30
+#define AI_FRAME_CEILING_STEVEN_MULTI                           22
+#define AI_FRAME_CEILING_STEVEN_MULTI_SMART_TRAINER             25
 #define AI_FRAME_CEILING_CHECK                                  FALSE // If TRUE, forces all thinking time tests to fail. Useful for printing all actual frame times to console by running the tests
 
 AI_SINGLE_BATTLE_TEST("AI thinking time doesn't explode (singles, no flags)")

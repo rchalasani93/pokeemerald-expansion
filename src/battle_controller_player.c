@@ -1705,6 +1705,66 @@ static void MoveSelectionDisplayPPNumber(enum BattlerId battler)
     BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_PP_REMAINING);
 }
 
+// Estimated damage range of a move against the default target, as % of its max HP.
+// Uses a side-effect-free damage context (same approach as battle_tv.c).
+static bool32 GetMoveDamagePreview(enum BattlerId battler, enum Move move, u32 *minPercent, u32 *maxPercent)
+{
+    enum BattlerId target = GetBattlerAtPosition(B_POSITION_OPPONENT_LEFT);
+    enum BattlerId savedAttacker = gBattlerAttacker, savedTarget = gBattlerTarget;
+    enum Move savedMove = gCurrentMove;
+    struct DamageContext ctx = {0};
+    s32 damage;
+
+    if (!B_SHOW_DAMAGE_PREVIEW
+     || move == MOVE_NONE
+     || GetMoveCategory(move) == DAMAGE_CATEGORY_STATUS
+     || GetMovePower(move) == 0
+     || (gBattleTypeFlags & BATTLE_TYPE_LINK))
+        return FALSE;
+
+    if (IsDoubleBattle() && !IsBattlerAlive(target))
+        target = GetBattlerAtPosition(B_POSITION_OPPONENT_RIGHT);
+    if (!IsBattlerAlive(target) || gBattleMons[target].maxHP == 0)
+        return FALSE;
+
+    gBattlerAttacker = battler;
+    gBattlerTarget = target;
+    gCurrentMove = move;
+
+    ctx.battlerAtk = battler;
+    ctx.battlerDef = target;
+    ctx.move = ctx.chosenMove = ctx.baseMove = move;
+    ctx.moveType = GetMoveType(move);
+    if (P_SHOW_DYNAMIC_TYPES)
+    {
+        enum Type dynamicType = CheckDynamicMoveType(GetBattlerMon(battler), move, battler, MON_IN_BATTLE);
+        if (dynamicType != TYPE_NONE)
+            ctx.moveType = dynamicType;
+    }
+    ctx.isCrit = FALSE;
+    ctx.randomFactor = FALSE; // max roll
+    ctx.updateFlags = FALSE;
+    ctx.weather = GetWeather();
+    ctx.terrain = gFieldTimers.terrain;
+    for (enum BattlerId i = 0; i < gBattlersCount; i++)
+    {
+        ctx.abilities[i] = GetBattlerAbility(i);
+        ctx.holdEffects[i] = GetBattlerHoldEffect(i);
+    }
+    damage = CalculateMoveDamage(&ctx);
+    damage *= max(1, GetMoveStrikeCount(move));
+
+    gBattlerAttacker = savedAttacker;
+    gBattlerTarget = savedTarget;
+    gCurrentMove = savedMove;
+
+    if (damage < 0)
+        damage = 0;
+    *maxPercent = min((u32)damage * 100 / gBattleMons[target].maxHP, 999);
+    *minPercent = min((u32)damage * 85 / gBattleMons[target].maxHP, 999); // lowest damage roll is 85%
+    return TRUE;
+}
+
 static void MoveSelectionDisplayMoveType(enum BattlerId battler)
 {
     u8 *txtPtr, *end;
@@ -1744,6 +1804,22 @@ static void MoveSelectionDisplayMoveType(enum BattlerId battler)
         type = CheckDynamicMoveType(mon, move, battler, MON_IN_BATTLE);
     }
     end = StringCopy(txtPtr, gTypesInfo[type].name);
+
+    {
+        u32 minPercent, maxPercent;
+        if (GetMoveDamagePreview(battler, move, &minPercent, &maxPercent))
+        {
+            // "Fire 34-41%" instead of "TYPE/Fire"
+            txtPtr = gDisplayedStringBattle;
+            end = StringCopy(txtPtr, gTypesInfo[type].name);
+            *end++ = CHAR_SPACE;
+            end = ConvertIntToDecimalStringN(end, minPercent, STR_CONV_MODE_LEFT_ALIGN, 3);
+            *end++ = CHAR_HYPHEN;
+            end = ConvertIntToDecimalStringN(end, maxPercent, STR_CONV_MODE_LEFT_ALIGN, 3);
+            *end++ = CHAR_PERCENT;
+            *end = EOS;
+        }
+    }
 
     PrependFontIdToFit(txtPtr, end, FONT_NORMAL, WindowWidthPx(B_WIN_MOVE_TYPE) - 25);
     BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_MOVE_TYPE);

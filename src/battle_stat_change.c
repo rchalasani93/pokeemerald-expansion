@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_scripts.h"
 #include "battle_util.h"
 #include "battle_stat_change.h"
@@ -83,7 +84,7 @@ static bool32 CheckSpecificMoveCondition(struct BattleCalcValues *cv, struct Sta
     switch (cv->moveEffect)
     {
     case EFFECT_CAPTIVATE:
-        if (cv->abilities[cv->battlerDef] == ABILITY_OBLIVIOUS)
+        if (HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_OBLIVIOUS))
         {
             if (!st->onlyChecking)
             {
@@ -145,7 +146,7 @@ static bool32 CheckSpecificMoveCondition(struct BattleCalcValues *cv, struct Sta
         }
         break;
     case EFFECT_SWAGGER:
-        if (cv->abilities[cv->battlerDef] == ABILITY_OWN_TEMPO)
+        if (HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_OWN_TEMPO))
         {
             if (!st->onlyChecking)
             {
@@ -417,7 +418,7 @@ static enum StatChangeResult IncreaseStat(struct BattleCalcValues *cv, struct St
                 if (CompareStat(battler, st->stat, MAX_STAT_STAGE, CMP_EQUAL, cv->abilities[battler]))
                     continue;
 
-                if (cv->abilities[battler] == ABILITY_OPPORTUNIST && !st->opportunistActivation)
+                if (HasAbilityOrInnate(battler, cv->abilities[battler], ABILITY_OPPORTUNIST) && !st->opportunistActivation)
                     gProtectStructs[battler].activateOpportunist = TRUE;
 
                 if (cv->holdEffects[battler] == HOLD_EFFECT_MIRROR_HERB && !st->mirrorHerbActivation)
@@ -507,7 +508,7 @@ static void TryPlayStatChangeAnimation(struct BattleCalcValues *cv, struct StatC
 
         gBattleStruct->negativeAnimPlayed = TRUE;
 
-        if (cv->abilities[cv->battlerDef] == ABILITY_CONTRARY)
+        if (HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_CONTRARY))
             numNegativeStats = GetNumPositiveStats(st);
         else
             numNegativeStats = GetNumNegativeStats(st);
@@ -530,7 +531,7 @@ static void TryPlayStatChangeAnimation(struct BattleCalcValues *cv, struct StatC
 
         gBattleStruct->positiveAnimPlayed = TRUE;
 
-        if (cv->abilities[cv->battlerDef] == ABILITY_CONTRARY)
+        if (HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_CONTRARY))
             numPositiveStats = GetNumNegativeStats(st);
         else
             numPositiveStats = GetNumPositiveStats(st);
@@ -573,7 +574,7 @@ static bool32 IsMistProtected(struct BattleCalcValues *cv, struct StatChange *st
     if (st->certain)
         return FALSE;
 
-    if (!IsBattlerAlly(cv->battlerDef, cv->battlerAtk) && cv->abilities[cv->battlerAtk] == ABILITY_INFILTRATOR)
+    if (!IsBattlerAlly(cv->battlerDef, cv->battlerAtk) && HasAbilityOrInnate(cv->battlerAtk, cv->abilities[cv->battlerAtk], ABILITY_INFILTRATOR))
         return FALSE;
 
     if (!st->onlyChecking)
@@ -595,7 +596,7 @@ static enum BattlerId StatChange_IsFlowerVeilProtected(struct BattleCalcValues *
     {
         if (!IsBattlerAlly(cv->battlerDef, battler))
             continue;
-        if (cv->abilities[battler] == ABILITY_FLOWER_VEIL)
+        if (HasAbilityOrInnate(battler, cv->abilities[battler], ABILITY_FLOWER_VEIL))
             return battler;
     }
 
@@ -650,7 +651,8 @@ static bool32 IsIntimidateBlocked(struct BattleCalcValues *cv, struct StatChange
     if (!st->intimidate)
         return FALSE;
 
-    switch (cv->abilities[cv->battlerDef])
+    enum Ability abilitySlot = !INNATES_ACTIVE() ? cv->abilities[cv->battlerDef] : GetFirstAbilitySlotInList(cv->battlerDef, cv->abilities[cv->battlerDef], (const u16[]){ABILITY_INNER_FOCUS, ABILITY_SCRAPPY, ABILITY_OWN_TEMPO, ABILITY_OBLIVIOUS, ABILITY_GUARD_DOG}, 5);
+    switch (abilitySlot)
     {
     case ABILITY_INNER_FOCUS:
     case ABILITY_SCRAPPY:
@@ -729,7 +731,7 @@ static bool32 IsAbilityBlocked(struct BattleCalcValues *cv, struct StatChange *s
 
 static bool32 IsMirrorArmorReflected(struct BattleCalcValues *cv, struct StatChange *st)
 {
-    if (cv->abilities[cv->battlerDef] != ABILITY_MIRROR_ARMOR
+    if (!HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_MIRROR_ARMOR)
      || st->ignoreMirrorArmored
      || st->certain)
         return FALSE;
@@ -792,7 +794,8 @@ static void AdjustStatStage(struct BattleCalcValues *cv, struct StatChange *st)
     if (st->stage == STAT_CHANGE_FORCE_MAX)
         st->stage = 12;
 
-    switch (cv->abilities[cv->battlerDef])
+    FOREACH_ABILITY_SLOT(abilitySlot, cv->battlerDef, cv->abilities[cv->battlerDef])
+    switch (abilitySlot)
     {
     case ABILITY_CONTRARY:
         st->stage = -1 * st->stage;
@@ -962,7 +965,7 @@ bool32 CompareStat(enum BattlerId battler, enum Stat statId, u32 cmpTo, u32 cmpK
 
     // Because this command is used as a way of checking if a stat can be lowered/raised,
     // we need to do some modification at run-time.
-    if (ability == ABILITY_CONTRARY)
+    if (HasAbilityOrInnate(battler, ability, ABILITY_CONTRARY))
     {
         if (cmpKind == CMP_GREATER_THAN)
             cmpKind = CMP_LESS_THAN;
@@ -1063,7 +1066,7 @@ bool32 CanStatChange(struct BattleCalcValues *cv, struct StatChange *st)
     {
         // Special Case for speed boost since shouldn't try to lower opposing stats on speed boost
         // Also for user it might make sense to lower the stat. Regardless this whole check is better suited for CheckViability since the move wouldn't fail in this case
-        if (cv->battlerAtk != cv->battlerDef && st->stat == STAT_SPEED && st->stage < 0 && cv->abilities[cv->battlerDef] == ABILITY_SPEED_BOOST)
+        if (cv->battlerAtk != cv->battlerDef && st->stat == STAT_SPEED && st->stage < 0 && HasAbilityOrInnate(cv->battlerDef, cv->abilities[cv->battlerDef], ABILITY_SPEED_BOOST))
             return FALSE;
 
         if (CompareStat(cv->battlerDef, st->stat, MIN_STAT_STAGE, CMP_EQUAL, ABILITY_NONE))

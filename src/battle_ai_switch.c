@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "constants/battle_ai.h"
 #include "battle_ai_main.h"
 #include "battle_ai_switch.h"
@@ -309,7 +310,7 @@ static bool32 AI_DoesChoiceEffectBlockMove(enum BattlerId battler, enum Move mov
     // Choice locked into something else
     if (gAiLogicData->lastUsedMove[battler] != MOVE_NONE && gAiLogicData->lastUsedMove[battler] != move
     && (IsHoldEffectChoice(GetBattlerHoldEffect(battler) && IsBattlerItemEnabled(battler))
-        || gAiLogicData->abilities[battler] == ABILITY_GORILLA_TACTICS))
+        || HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_GORILLA_TACTICS)))
         return TRUE;
     return FALSE;
 }
@@ -386,7 +387,7 @@ static bool32 ShouldSwitchIfHasBadOdds(struct SwitchAiContext *switchContext)
     // Start assessing whether or not mon has bad odds
     // Jump straight to switching out in cases where mon gets OHKO'd
     if ((switchContext->battlerGetsOHKOd && !switchContext->canBattlerWin1v1) && (gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 2 // And the current mon has at least 1/2 their HP, or 1/4 HP and Regenerator
-            || (gAiLogicData->abilities[switchContext->battler] == ABILITY_REGENERATOR && gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 4)))
+            || (HasAbilityOrInnate(switchContext->battler, gAiLogicData->abilities[switchContext->battler], ABILITY_REGENERATOR) && gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 4)))
     {
         // 50% chance to stay in regardless
         if (RandomPercentage(RNG_AI_SWITCH_HASBADODDS, (100 - GetSwitchChance(SHOULD_SWITCH_HASBADODDS))) && !gAiLogicData->aiPredictionInProgress)
@@ -401,7 +402,7 @@ static bool32 ShouldSwitchIfHasBadOdds(struct SwitchAiContext *switchContext)
     {
         if (!switchContext->hasEffectiveMove // If the AI doesn't have a super effective move
         && (gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 2 // And the current mon has at least 1/2 their HP, or 1/4 HP and Regenerator
-            || (gAiLogicData->abilities[switchContext->battler] == ABILITY_REGENERATOR
+            || (HasAbilityOrInnate(switchContext->battler, gAiLogicData->abilities[switchContext->battler], ABILITY_REGENERATOR)
             && gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 4)))
         {
             // Then check if they have an important status move, which is worth using even in a bad matchup
@@ -422,7 +423,7 @@ static bool32 ShouldSwitchIfHasBadOdds(struct SwitchAiContext *switchContext)
 static bool32 ShouldSwitchIfTruant(struct SwitchAiContext *switchContext)
 {
     // Switch if mon with truant is bodied by Protect or invulnerability spam
-    if (gAiLogicData->abilities[switchContext->battler] == ABILITY_TRUANT
+    if (HasAbilityOrInnate(switchContext->battler, gAiLogicData->abilities[switchContext->battler], ABILITY_TRUANT)
         && IsTruantMonVulnerable(switchContext->battler, switchContext->opposingBattler)
         && gBattleMons[switchContext->battler].volatiles.truantCounter
         && gBattleMons[switchContext->battler].hp >= gBattleMons[switchContext->battler].maxHP / 2
@@ -546,7 +547,7 @@ static bool32 ShouldSwitchIfWonderGuard(struct SwitchAiContext *switchContext)
     if (IsDoubleBattle())
         return FALSE;
 
-    if (gAiLogicData->abilities[switchContext->opposingBattler] != ABILITY_WONDER_GUARD)
+    if (!HasAbilityOrInnate(switchContext->opposingBattler, gAiLogicData->abilities[switchContext->opposingBattler], ABILITY_WONDER_GUARD))
         return FALSE;
 
     // Check if Pokémon has a super effective move.
@@ -776,10 +777,10 @@ static bool32 ShouldSwitchIfBadlyStatused(struct SwitchAiContext *switchContext)
 
             // Check if Active Pokemon evasion boosted and might be able to dodge until awake
             if (gBattleMons[switchContext->battler].statStages[STAT_EVASION] > (DEFAULT_STAT_STAGE + 3)
-                && gAiLogicData->abilities[switchContext->opposingBattler] != ABILITY_UNAWARE
-                && gAiLogicData->abilities[switchContext->opposingBattler] != ABILITY_KEEN_EYE
-                && gAiLogicData->abilities[switchContext->opposingBattler] != ABILITY_MINDS_EYE
-                && (GetConfig(B_ILLUMINATE_EFFECT) >= GEN_9 && gAiLogicData->abilities[switchContext->opposingBattler] != ABILITY_ILLUMINATE)
+                && !HasAbilityOrInnate(switchContext->opposingBattler, gAiLogicData->abilities[switchContext->opposingBattler], ABILITY_UNAWARE)
+                && !HasAbilityOrInnate(switchContext->opposingBattler, gAiLogicData->abilities[switchContext->opposingBattler], ABILITY_KEEN_EYE)
+                && !HasAbilityOrInnate(switchContext->opposingBattler, gAiLogicData->abilities[switchContext->opposingBattler], ABILITY_MINDS_EYE)
+                && (GetConfig(B_ILLUMINATE_EFFECT) >= GEN_9 && !HasAbilityOrInnate(switchContext->opposingBattler, gAiLogicData->abilities[switchContext->opposingBattler], ABILITY_ILLUMINATE))
                 && !gBattleMons[switchContext->battler].volatiles.foresight
                 && !gBattleMons[switchContext->battler].volatiles.miracleEye)
                 switchMon = FALSE;
@@ -836,7 +837,7 @@ static bool32 CanPalafinZeroSafelyUseHitEscape(enum BattlerId battlerAtk, enum M
     enum Type moveType;
 
     if (gBattleMons[battlerAtk].species != SPECIES_PALAFIN_ZERO
-     || gAiLogicData->abilities[battlerAtk] != ABILITY_ZERO_TO_HERO)
+     || !HasAbilityOrInnate(battlerAtk, gAiLogicData->abilities[battlerAtk], ABILITY_ZERO_TO_HERO))
         return FALSE;
 
     if (GetMoveEffect(move) != EFFECT_HIT_ESCAPE)
@@ -881,8 +882,8 @@ static bool32 CanPalafinZeroSafelyUseHitEscape(enum BattlerId battlerAtk, enum M
 
         if (AI_CanMoveBeBlockedByTarget(&ctx))
         {
-            if ((moveType == TYPE_WATER && abilityDef == ABILITY_STORM_DRAIN)
-             || (moveType == TYPE_ELECTRIC && abilityDef == ABILITY_LIGHTNING_ROD))
+            if ((moveType == TYPE_WATER && HasAbilityOrInnate(battlerDef, abilityDef, ABILITY_STORM_DRAIN))
+             || (moveType == TYPE_ELECTRIC && HasAbilityOrInnate(battlerDef, abilityDef, ABILITY_LIGHTNING_ROD)))
                 absorberOnField = TRUE;
             gAiLogicData->effectiveness[battlerAtk][battlerDef][moveIndex] = UQ_4_12(0.0);
             continue;
@@ -979,7 +980,7 @@ static bool32 ShouldSwitchIfIntimidateBenefit(struct SwitchAiContext *switchCont
         enum Ability abilityDef = gAiLogicData->abilities[switchContext->opposingBattler];
         bool32 canLowerAtk = CanIntimidateLowerOpponentAtk(switchContext->battler, switchContext->opposingBattler);
 
-        if (canLowerAtk && (DoesIntimidateRaiseStats(abilityDef) || abilityDef == ABILITY_MIRROR_ARMOR))
+        if (canLowerAtk && (DoesIntimidateRaiseStats(abilityDef) || HasAbilityOrInnate(switchContext->opposingBattler, abilityDef, ABILITY_MIRROR_ARMOR)))
             return FALSE;
         if (canLowerAtk && IsOpponentPhysicalAttacker(switchContext->battler, switchContext->opposingBattler))
             hasValidTarget = TRUE;
@@ -990,7 +991,7 @@ static bool32 ShouldSwitchIfIntimidateBenefit(struct SwitchAiContext *switchCont
         enum Ability abilityDef = gAiLogicData->abilities[opposingPartner];
         bool32 canLowerAtk = CanIntimidateLowerOpponentAtk(switchContext->battler, opposingPartner);
 
-        if (canLowerAtk && (DoesIntimidateRaiseStats(abilityDef) || abilityDef == ABILITY_MIRROR_ARMOR))
+        if (canLowerAtk && (DoesIntimidateRaiseStats(abilityDef) || HasAbilityOrInnate(opposingPartner, abilityDef, ABILITY_MIRROR_ARMOR)))
             return FALSE;
         if (canLowerAtk && IsOpponentPhysicalAttacker(switchContext->battler, opposingPartner))
             hasValidTarget = TRUE;
@@ -1518,7 +1519,7 @@ bool32 ShouldStayInToUseMove(struct SwitchAiContext *switchContext)
         // An unsafe hit escape move must not override Palafin-Zero's hard-switch decision.
         if (effect == EFFECT_HIT_ESCAPE
          && gBattleMons[switchContext->battler].species == SPECIES_PALAFIN_ZERO
-         && gAiLogicData->abilities[switchContext->battler] == ABILITY_ZERO_TO_HERO
+         && HasAbilityOrInnate(switchContext->battler, gAiLogicData->abilities[switchContext->battler], ABILITY_ZERO_TO_HERO)
          && !CanPalafinZeroSafelyUseHitEscape(switchContext->battler, move))
             continue;
 
@@ -1592,8 +1593,8 @@ static u32 GetSwitchinSingleUseItemHealing(enum BattlerId battler, enum BattlerI
 
     // Check if we're at a single use healing item threshold
     if (currentHP <= 0
-     || gAiLogicData->abilities[battler] == ABILITY_KLUTZ
-     || (gAiLogicData->abilities[opposingBattler] == ABILITY_UNNERVE && GetItemPocket(aiItem) == POCKET_BERRIES))
+     || HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_KLUTZ)
+     || (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_UNNERVE) && GetItemPocket(aiItem) == POCKET_BERRIES))
         return itemHeal;
 
     switch (GetItemHoldEffect(aiItem))
@@ -2137,7 +2138,7 @@ static bool32 AI_CanSwitchinAbilityTrapOpponent(enum Ability ability, enum Battl
         return FALSE;
     else if (ability == ABILITY_SHADOW_TAG)
     {
-        if (B_SHADOW_TAG_ESCAPE >= GEN_4 && gAiLogicData->abilities[opposingBattler] == ABILITY_SHADOW_TAG)
+        if (B_SHADOW_TAG_ESCAPE >= GEN_4 && HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_SHADOW_TAG))
             return FALSE;
         else
             return TRUE;
@@ -2263,7 +2264,7 @@ static u32 GetBestMonIntegrated(struct Pokemon *party, int lastId, enum BattlerI
         }
 
         // While not really invalid per se, not really wise to switch into this mon
-        if (gAiLogicData->abilities[battler] == ABILITY_TRUANT && IsTruantMonVulnerable(battler, opposingBattler))
+        if (HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_TRUANT) && IsTruantMonVulnerable(battler, opposingBattler))
             continue;
 
         // Get max number of hits for player to KO AI mon and type matchup for defensive switching
@@ -2392,7 +2393,7 @@ static u32 GetBestMonIntegrated(struct Pokemon *party, int lastId, enum BattlerI
 
                 // If mon can trap
                 if ((AI_CanSwitchinAbilityTrapOpponent(gAiLogicData->abilities[battler], opposingBattler)
-                    || (AI_CanSwitchinAbilityTrapOpponent(gAiLogicData->abilities[opposingBattler], opposingBattler) && gAiLogicData->abilities[battler] == ABILITY_TRACE))
+                    || (AI_CanSwitchinAbilityTrapOpponent(gAiLogicData->abilities[opposingBattler], opposingBattler) && HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_TRACE)))
                     && canSwitchinWin1v1)
                     trapperIds |= (1u << monIndex);
             }
@@ -2514,7 +2515,7 @@ static u32 GetBestMonVanilla(struct Pokemon *party, int lastId, enum BattlerId b
         InitializeSwitchinCandidate(battler, monIndex, &party[monIndex]);
 
         // While not really invalid per se, not really wise to switch into this mon
-        if (gAiLogicData->abilities[battler] == ABILITY_TRUANT && IsTruantMonVulnerable(battler, opposingBattler))
+        if (HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_TRUANT) && IsTruantMonVulnerable(battler, opposingBattler))
             continue;
 
         typeMatchup = GetBattlerTypeMatchup(opposingBattler, battler);
@@ -2766,7 +2767,7 @@ static void SetBattlerStatStagesForSwitchin(enum BattlerId battler, enum Battler
     case ABILITY_INTIMIDATE:
         if (CanLowerStat(battler, opposingBattler, gAiLogicData, STAT_ATK))
         {
-            if (gAiLogicData->abilities[opposingBattler] == ABILITY_CONTRARY)
+            if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_CONTRARY))
             {
                 gBattleMons[opposingBattler].statStages[STAT_ATK] += 1;
             }
@@ -2774,9 +2775,9 @@ static void SetBattlerStatStagesForSwitchin(enum BattlerId battler, enum Battler
             {
                 opponentStatDrop = TRUE;
                 gBattleMons[opposingBattler].statStages[STAT_ATK] -= 1;
-                if (gAiLogicData->abilities[opposingBattler] == ABILITY_DEFIANT)
+                if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_DEFIANT))
                     gBattleMons[opposingBattler].statStages[STAT_ATK] += 2;
-                if (gAiLogicData->abilities[opposingBattler] == ABILITY_COMPETITIVE)
+                if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_COMPETITIVE))
                     gBattleMons[opposingBattler].statStages[STAT_SPATK] += 2;
             }
         }
@@ -2784,7 +2785,7 @@ static void SetBattlerStatStagesForSwitchin(enum BattlerId battler, enum Battler
     case ABILITY_SUPERSWEET_SYRUP:
         if (CanLowerStat(battler, opposingBattler, gAiLogicData, STAT_EVASION))
         {
-            if (gAiLogicData->abilities[opposingBattler] == ABILITY_CONTRARY)
+            if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_CONTRARY))
             {
                 gBattleMons[opposingBattler].statStages[STAT_EVASION] += 1;
             }
@@ -2792,9 +2793,9 @@ static void SetBattlerStatStagesForSwitchin(enum BattlerId battler, enum Battler
             {
                 opponentStatDrop = TRUE;
                 gBattleMons[opposingBattler].statStages[STAT_EVASION] -= 1;
-                if (gAiLogicData->abilities[opposingBattler] == ABILITY_DEFIANT)
+                if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_DEFIANT))
                     gBattleMons[opposingBattler].statStages[STAT_ATK] += 2;
-                if (gAiLogicData->abilities[opposingBattler] == ABILITY_COMPETITIVE)
+                if (HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_COMPETITIVE))
                     gBattleMons[opposingBattler].statStages[STAT_SPATK] += 2;
             }
         }
@@ -2852,9 +2853,9 @@ static void SetBattlerStatStagesForSwitchin(enum BattlerId battler, enum Battler
         if (gFieldStatuses & STATUS_FIELD_TRICK_ROOM)
             gBattleMons[battler].statStages[STAT_SPEED] -= 1;
     case HOLD_EFFECT_MIRROR_HERB:
-        if (opponentStatDrop && gAiLogicData->abilities[opposingBattler] == ABILITY_DEFIANT)
+        if (opponentStatDrop && HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_DEFIANT))
             gBattleMons[battler].statStages[STAT_ATK] += 2;
-        if (opponentStatDrop && gAiLogicData->abilities[opposingBattler] == ABILITY_COMPETITIVE)
+        if (opponentStatDrop && HasAbilityOrInnate(opposingBattler, gAiLogicData->abilities[opposingBattler], ABILITY_COMPETITIVE))
             gBattleMons[battler].statStages[STAT_SPATK] += 2;
         break;
     default:

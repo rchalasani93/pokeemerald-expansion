@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_anim.h"
 #include "battle_controllers.h"
 #include "battle_interface.h"
@@ -161,7 +162,7 @@ uq4_12_t GetTeraMultiplier(struct DamageContext *ctx)
     // Base and Tera type.
     if (ctx->moveType == teraType && IS_BATTLER_OF_BASE_TYPE(ctx->battlerAtk, ctx->moveType))
     {
-        if (ctx->abilities[ctx->battlerAtk] == ABILITY_ADAPTABILITY)
+        if (HasAbilityOrInnate(ctx->battlerAtk, ctx->abilities[ctx->battlerAtk], ABILITY_ADAPTABILITY))
             return UQ_4_12(2.25);
         else
             return UQ_4_12(2.0);
@@ -169,7 +170,7 @@ uq4_12_t GetTeraMultiplier(struct DamageContext *ctx)
     // Tera type only (Adaptability applies).
     else if (ctx->moveType == teraType && !IS_BATTLER_OF_BASE_TYPE(ctx->battlerAtk, ctx->moveType))
     {
-        if (ctx->abilities[ctx->battlerAtk] == ABILITY_ADAPTABILITY)
+        if (HasAbilityOrInnate(ctx->battlerAtk, ctx->abilities[ctx->battlerAtk], ABILITY_ADAPTABILITY))
             return UQ_4_12(2.0);
         else
             return UQ_4_12(1.5);

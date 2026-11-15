@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_hold_effects.h"
 #include "battle_stat_change.h"
 #include "battle_util.h"
@@ -273,17 +274,25 @@ static bool32 FirstEventBlockEvents(struct BattleCalcValues *calcValues)
         }
         break;
     case FIRST_EVENT_BLOCK_GENERAL_ABILITIES:
+    {
+        bool32 moreSlots = FALSE;
         if (TryPrimalReversion(battler)
-         || AbilityBattleEffects(ABILITYEFFECT_ON_SWITCHIN, battler, calcValues->abilities[battler], MOVE_NONE, gBattleStruct->battlerState[battler].switchIn)
+         || AbilityBattleEffectsAllSlots(ABILITYEFFECT_ON_SWITCHIN, battler, calcValues->abilities[battler], MOVE_NONE, gBattleStruct->battlerState[battler].switchIn, &moreSlots)
          || TryClearIllusion(battler, calcValues->abilities[battler]))
             effect = TRUE;
-        gBattleStruct->eventState.battlerSwitchIn++;
+        if (!moreSlots) // innates: stay on this step until every ability slot had its turn
+            gBattleStruct->eventState.battlerSwitchIn++;
         break;
+    }
     case FIRST_EVENT_BLOCK_IMMUNITY_ABILITIES:
-        if (AbilityBattleEffects(ABILITYEFFECT_IMMUNITY, battler, calcValues->abilities[battler], MOVE_NONE, TRUE))
+    {
+        bool32 moreSlots = FALSE;
+        if (AbilityBattleEffectsAllSlots(ABILITYEFFECT_IMMUNITY, battler, calcValues->abilities[battler], MOVE_NONE, TRUE, &moreSlots))
             effect = TRUE;
-        gBattleStruct->eventState.battlerSwitchIn++;
+        if (!moreSlots)
+            gBattleStruct->eventState.battlerSwitchIn++;
         break;
+    }
     case FIRST_EVENT_BLOCK_ITEMS:
         if (ItemBattleEffects(battler, 0, calcValues->holdEffects[battler], IsOnSwitchInActivation))
             effect = TRUE;
@@ -370,7 +379,7 @@ static bool32 TryHazardsOnSwitchIn(enum BattlerId battler, enum Ability ability,
         }
         break;
     case HAZARDS_STEALTH_ROCK:
-        if (IsBattlerAffectedByHazards(battler, holdEffect, FALSE) && ability != ABILITY_MAGIC_GUARD)
+        if (IsBattlerAffectedByHazards(battler, holdEffect, FALSE) && !HasAbilityOrInnate(battler, ability, ABILITY_MAGIC_GUARD))
         {
             gBattleStruct->passiveHpUpdate[battler] = GetStealthHazardDamage(TYPE_SIDE_HAZARD_POINTED_STONES, battler);
             if (gBattleStruct->passiveHpUpdate[battler] != 0)
@@ -381,7 +390,7 @@ static bool32 TryHazardsOnSwitchIn(enum BattlerId battler, enum Ability ability,
         }
         break;
     case HAZARDS_STEELSURGE:
-        if (IsBattlerAffectedByHazards(battler, holdEffect, FALSE) && ability != ABILITY_MAGIC_GUARD)
+        if (IsBattlerAffectedByHazards(battler, holdEffect, FALSE) && !HasAbilityOrInnate(battler, ability, ABILITY_MAGIC_GUARD))
         {
             gBattleStruct->passiveHpUpdate[battler] = GetStealthHazardDamage(TYPE_SIDE_HAZARD_SHARP_STEEL, battler);
             if (gBattleStruct->passiveHpUpdate[battler] != 0)
@@ -409,9 +418,9 @@ static bool32 SecondEventBlockEvents(struct BattleCalcValues *calcValues)
     switch (gBattleStruct->eventState.battlerSwitchIn)
     {
     case SECOND_EVENT_ABILITIES:
-        if (AbilityBattleEffects(ABILITYEFFECT_ON_WEATHER, battler, calcValues->abilities[battler], MOVE_NONE, TRUE)
-         || AbilityBattleEffects(ABILITYEFFECT_ON_TERRAIN, battler, calcValues->abilities[battler], MOVE_NONE, TRUE)
-         || AbilityBattleEffects(ABILITYEFFECT_DEPENDS_ON_ALLY, battler, calcValues->abilities[battler], MOVE_NONE, gBattleStruct->battlerState[battler].switchIn))
+        if (AbilityBattleEffectsFirstSlot(ABILITYEFFECT_ON_WEATHER, battler, calcValues->abilities[battler], MOVE_NONE, TRUE, NULL)
+         || AbilityBattleEffectsFirstSlot(ABILITYEFFECT_ON_TERRAIN, battler, calcValues->abilities[battler], MOVE_NONE, TRUE, NULL)
+         || AbilityBattleEffectsFirstSlot(ABILITYEFFECT_DEPENDS_ON_ALLY, battler, calcValues->abilities[battler], MOVE_NONE, gBattleStruct->battlerState[battler].switchIn, NULL))
             effect = TRUE;
         gBattleStruct->eventState.battlerSwitchIn++;
         break;

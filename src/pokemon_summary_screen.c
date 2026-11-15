@@ -1,4 +1,5 @@
 #include "global.h"
+#include "innates.h"
 #include "main.h"
 #include "battle.h"
 #include "battle_anim.h"
@@ -3530,10 +3531,38 @@ static void PrintMonAbilityName(void)
     PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].name, 0, 1, 0, 1);
 }
 
+static const u8 sText_InnatesPrefix[] = _("Innates: ");
+
+// Builds "Innates: A, B, C" for species with innates. Returns FALSE if there are none.
+static bool32 BufferSpeciesInnates(enum Species species, u8 *dst)
+{
+    u32 i, count = 0;
+    u8 *end = StringCopy(dst, sText_InnatesPrefix);
+
+    for (i = 0; i < MAX_MON_INNATES; i++)
+    {
+        enum Ability innate = GetSpeciesInnate(species, i);
+        if (innate == ABILITY_NONE)
+            continue;
+        if (count++ != 0)
+        {
+            *end++ = CHAR_COMMA;
+            *end++ = CHAR_SPACE;
+        }
+        end = StringCopy(end, gAbilitiesInfo[innate].name);
+    }
+    return count != 0;
+}
+
 static void PrintMonAbilityDescription(void)
 {
     enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].description, 0, 17, 0, 0);
+
+    // Elite Redux-style: Pokémon with innates list them under their ability
+    if (BufferSpeciesInnates(sMonSummaryScreen->summary.species, gStringVar4))
+        PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gStringVar4, 0, 17, 0, 0);
+    else
+        PrintTextOnWindowToFit(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ABILITY), gAbilitiesInfo[ability].description, 0, 17, 0, 0);
 }
 
 static void BufferMonTrainerMemo(void)

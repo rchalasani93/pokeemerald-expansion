@@ -70,6 +70,7 @@
 #include "constants/trainers.h"
 #include "test/battle.h"
 #include "battle_util.h"
+#include "innates.h"
 #include "constants/pokemon.h"
 #include "config/battle.h"
 #include "data/battle_move_effects.h"
@@ -909,7 +910,7 @@ static const struct PickupItem sPickupTable[] =
 
 bool32 ProteanTryChangeType(enum BattlerId battler, enum Ability ability, enum Move move, enum Type moveType)
 {
-      if ((ability == ABILITY_PROTEAN || ability == ABILITY_LIBERO)
+      if ((HasAbilityOrInnate(battler, ability, ABILITY_PROTEAN) || HasAbilityOrInnate(battler, ability, ABILITY_LIBERO))
          && !gBattleMons[battler].volatiles.usedProteanLibero
          && !gBattleStruct->bouncedMoveIsUsed
          && (gBattleMons[battler].types[0] != moveType || gBattleMons[battler].types[1] != moveType
@@ -1604,7 +1605,7 @@ void StealTargetItem(enum BattlerId battlerStealer, enum BattlerId itemBattler, 
     BtlController_EmitSetMonData(itemBattler, B_COMM_TO_CONTROLLER, REQUEST_HELDITEM_BATTLE, 0, sizeof(gBattleMons[itemBattler].item), &gBattleMons[itemBattler].item);  // remove target item
     MarkBattlerForControllerExec(itemBattler);
 
-    if (GetBattlerAbility(itemBattler) != ABILITY_GORILLA_TACTICS)
+    if (!BattlerHasAbility(itemBattler, ABILITY_GORILLA_TACTICS))
         gBattleStruct->choicedMove[itemBattler] = MOVE_NONE;
 
     TrySaveExchangedItem(itemBattler, gLastUsedItem);
@@ -1785,7 +1786,7 @@ static void SetToxicChainPriority(void)
         return;
 
     enum Ability abilityAtk = GetBattlerAbility(gBattlerAttacker);
-    if (abilityAtk == ABILITY_TOXIC_CHAIN
+    if (HasAbilityOrInnate(gBattlerAttacker, abilityAtk, ABILITY_TOXIC_CHAIN)
      && IsBattlerAlive(gBattlerTarget)
      && CanBePoisoned(gBattlerAttacker, gBattlerTarget, abilityAtk, GetBattlerAbility(gBattlerTarget))
      && IsBattlerTurnDamaged(gBattlerTarget, EXCLUDING_SUBSTITUTES)
@@ -3672,7 +3673,7 @@ static void UpdateSentMonFlags(enum BattlerId battler)
 
     // There is a hack here to ensure the truant counter will be 0 when the battler's next turn starts.
     // The truant counter is not updated in the case where a mon switches in after a lost judgment in the battle arena.
-    if (GetBattlerAbility(battler) == ABILITY_TRUANT
+    if (BattlerHasAbility(battler, ABILITY_TRUANT)
      && gCurrentActionFuncId != B_ACTION_USE_MOVE
      && !gBattleMons[battler].volatiles.truantSwitchInHack)
         gBattleMons[battler].volatiles.truantCounter = 1;
@@ -4386,7 +4387,7 @@ static void Cmd_setgravity(void)
 static bool32 TryCheekPouch(enum BattlerId battler, enum Item itemId, const u8 *nextInstr)
 {
     if (GetItemPocket(itemId) == POCKET_BERRIES
-        && GetBattlerAbility(battler) == ABILITY_CHEEK_POUCH
+        && BattlerHasAbility(battler, ABILITY_CHEEK_POUCH)
         && !gBattleMons[battler].volatiles.healBlockTimer
         && GetBattlerPartyState(battler)->ateBerry
         && !IsBattlerAtMaxHp(battler))
@@ -4429,7 +4430,7 @@ static void Cmd_removeitem(void)
      && GetMoveEffect(gCurrentMove) != EFFECT_CORROSIVE_GAS)
         GetBattlerPartyState(battler)->usedHeldItem = itemId; // Remember if switched out
 
-    if (GetItemPocket(itemId) == POCKET_BERRIES && GetBattlerAbility(battler) == ABILITY_CUD_CHEW)
+    if (GetItemPocket(itemId) == POCKET_BERRIES && BattlerHasAbility(battler, ABILITY_CUD_CHEW))
     {
         gBattleMons[battler].volatiles.cudChewTimer = 2;
     }
@@ -5049,14 +5050,14 @@ u32 IsFlowerVeilProtected(enum BattlerId battler)
 u32 IsLeafGuardProtected(enum BattlerId battler, enum Ability ability)
 {
     if (IsBattlerWeatherAffected(GetBattlerHoldEffect(battler), GetWeather(), B_WEATHER_SUN))
-        return ability == ABILITY_LEAF_GUARD;
+        return HasAbilityOrInnate(battler, ability, ABILITY_LEAF_GUARD);
     else
         return 0;
 }
 
 bool32 IsShieldsDownProtected(enum BattlerId battler, enum Ability ability)
 {
-    return (ability == ABILITY_SHIELDS_DOWN
+    return (HasAbilityOrInnate(battler, ability, ABILITY_SHIELDS_DOWN)
             && GetFormIdFromFormSpeciesId(gBattleMons[battler].species) < GetFormIdFromFormSpeciesId(SPECIES_MINIOR_CORE_RED)); // Minior is not in core form
 }
 
@@ -5334,7 +5335,7 @@ static void Cmd_trysetrest(void)
 bool8 UproarWakeUpCheck(enum BattlerId battler)
 {
     enum BattlerId i;
-    bool32 hasSoundproof = (GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && GetBattlerAbility(battler) == ABILITY_SOUNDPROOF);
+    bool32 hasSoundproof = (GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && BattlerHasAbility(battler, ABILITY_SOUNDPROOF));
 
     for (i = 0; i < gBattlersCount; i++)
     {
@@ -5761,7 +5762,7 @@ static void Cmd_tryinfatuating(void)
         return;
     }
 
-    if (GetBattlerAbility(gBattlerTarget) == ABILITY_OBLIVIOUS)
+    if (BattlerHasAbility(gBattlerTarget, ABILITY_OBLIVIOUS))
     {
         gBattlescriptCurrInstr = BattleScript_NotAffectedAbilityPopUp;
         gBattleStruct->moveResultFlags[gBattlerTarget] |= MOVE_RESULT_DOESNT_AFFECT_FOE;
@@ -6390,7 +6391,7 @@ static void Cmd_healpartystatus(void)
 
     if (GetConfig(B_HEAL_BELL_SOUNDPROOF) == GEN_5
      || GetConfig(B_HEAL_BELL_SOUNDPROOF) >= GEN_8
-     || !(isSoundMove && GetBattlerAbility(gBattlerAttacker) == ABILITY_SOUNDPROOF))
+     || !(isSoundMove && BattlerHasAbility(gBattlerAttacker, ABILITY_SOUNDPROOF)))
     {
         if (isSoundMove)
             gBattleCommunication[MULTISTRING_CHOOSER] = B_MSG_BELL;
@@ -6410,7 +6411,7 @@ static void Cmd_healpartystatus(void)
     if (IsBattlerAlive(partner))
     {
         if (GetConfig(B_HEAL_BELL_SOUNDPROOF) == GEN_5
-         || !(isSoundMove && GetBattlerAbility(partner) == ABILITY_SOUNDPROOF))
+         || !(isSoundMove && BattlerHasAbility(partner, ABILITY_SOUNDPROOF)))
         {
             gBattleMons[partner].status1 = 0;
             gBattleMons[partner].volatiles.nightmare = FALSE;
@@ -6919,7 +6920,7 @@ static void Cmd_settaunt(void)
 {
     CMD_ARGS(const u8 *failInstr);
 
-    if (GetConfig(B_OBLIVIOUS_TAUNT) >= GEN_6 && GetBattlerAbility(gBattlerTarget) == ABILITY_OBLIVIOUS)
+    if (GetConfig(B_OBLIVIOUS_TAUNT) >= GEN_6 && BattlerHasAbility(gBattlerTarget, ABILITY_OBLIVIOUS))
     {
         gBattlescriptCurrInstr = BattleScript_NotAffectedAbilityPopUp;
         gBattleStruct->moveResultFlags[gBattlerTarget] |= MOVE_RESULT_DOESNT_AFFECT_FOE;
@@ -7018,7 +7019,7 @@ static void Cmd_tryswapitems(void)
             gBattlescriptCurrInstr = cmd->failInstr;
         }
         // check if ability prevents swapping
-        else if (GetBattlerAbility(gBattlerTarget) == ABILITY_STICKY_HOLD)
+        else if (BattlerHasAbility(gBattlerTarget, ABILITY_STICKY_HOLD))
         {
             gBattlescriptCurrInstr = BattleScript_StickyHoldActivates;
             gBattlerAbility = gBattlerTarget;
@@ -7045,10 +7046,10 @@ static void Cmd_tryswapitems(void)
             BtlController_EmitSetMonData(gBattlerTarget, B_COMM_TO_CONTROLLER, REQUEST_HELDITEM_BATTLE, 0, sizeof(gBattleMons[gBattlerTarget].item), &gBattleMons[gBattlerTarget].item);
             MarkBattlerForControllerExec(gBattlerTarget);
 
-            if (GetBattlerAbility(gBattlerTarget) != ABILITY_GORILLA_TACTICS)
+            if (!BattlerHasAbility(gBattlerTarget, ABILITY_GORILLA_TACTICS))
                 gBattleStruct->choicedMove[gBattlerTarget] = MOVE_NONE;
 
-            if (GetBattlerAbility(gBattlerAttacker) != ABILITY_GORILLA_TACTICS
+            if (!BattlerHasAbility(gBattlerAttacker, ABILITY_GORILLA_TACTICS)
              && (!IsHoldEffectChoice(GetItemHoldEffect(oldItemDef))
              || (GetConfig(B_MODERN_TRICK_CHOICE_LOCK) >= GEN_5)))
             {
@@ -7674,7 +7675,7 @@ static void Cmd_tryrecycleitem(void)
 
     enum Item *usedHeldItem;
 
-    if (gCurrentMove == MOVE_NONE && GetBattlerAbility(gBattlerAttacker) == ABILITY_PICKUP)
+    if (gCurrentMove == MOVE_NONE && BattlerHasAbility(gBattlerAttacker, ABILITY_PICKUP))
         usedHeldItem = &GetBattlerPartyState(gBattlerTarget)->usedHeldItem;
     else
         usedHeldItem = &GetBattlerPartyState(gBattlerAttacker)->usedHeldItem;
@@ -9574,7 +9575,7 @@ void BS_TryHealPulse(void)
     else
     {
         s32 healAmount = 0;
-        if (GetBattlerAbility(gBattlerAttacker) == ABILITY_MEGA_LAUNCHER && IsPulseMove(gCurrentMove))
+        if (BattlerHasAbility(gBattlerAttacker, ABILITY_MEGA_LAUNCHER) && IsPulseMove(gCurrentMove))
             healAmount = GetNonDynamaxMaxHP(gBattlerTarget) * 75 / 100;
         else if (gFieldTimers.terrain == B_TERRAIN_GRASSY && GetMoveEffectArg_MoveProperty(gCurrentMove) == MOVE_EFFECT_FLORAL_HEALING)
             healAmount = GetNonDynamaxMaxHP(gBattlerTarget) * 2 / 3;
@@ -9759,7 +9760,7 @@ void BS_JumpIfBlockedBySoundproof(void)
 {
     NATIVE_ARGS(u8 battler, const u8 *jumpInstr);
     enum BattlerId battler = GetBattlerForBattleScript(cmd->battler);
-    if (IsSoundMove(gCurrentMove) && GetBattlerAbility(battler) == ABILITY_SOUNDPROOF)
+    if (IsSoundMove(gCurrentMove) && BattlerHasAbility(battler, ABILITY_SOUNDPROOF))
     {
         gLastUsedAbility = ABILITY_SOUNDPROOF;
         gBattlescriptCurrInstr = cmd->jumpInstr;
@@ -9969,7 +9970,7 @@ void BS_CheckPokeFlute(void)
 
     for (enum BattlerId i = 0; i < gBattlersCount; i++)
     {
-        if (GetBattlerAbility(i) != ABILITY_SOUNDPROOF)
+        if (!BattlerHasAbility(i, ABILITY_SOUNDPROOF))
         {
             gBattleMons[i].status1 &= ~STATUS1_SLEEP;
             gBattleMons[i].volatiles.nightmare = FALSE;
@@ -11159,7 +11160,7 @@ void BS_TryInstruct(void)
 void BS_ShowAbilityPopup(void)
 {
     NATIVE_ARGS();
-    CreateAbilityPopUp(gBattlerAbility, gBattleMons[gBattlerAbility].ability, (IsDoubleBattle()) != 0);
+    CreateAbilityPopUp(gBattlerAbility, GetAbilityForPopUp(gBattlerAbility), (IsDoubleBattle()) != 0);
     gBattlescriptCurrInstr = cmd->nextInstr;
 }
 
@@ -11962,7 +11963,7 @@ void BS_TryActivateAbilityWithAbilityShield(void)
 
     // check if Ability Shield is protecting battler's ability from being suppressed (no breaking effects)
     if (GetBattlerAbilityInternal(battler, TRUE, TRUE) == ABILITY_NONE
-     && GetBattlerAbility(battler) != ABILITY_NONE)
+     && !BattlerHasAbility(battler, ABILITY_NONE))
     {
         gBattleScripting.battler = battler;
         BattleScriptCall(BattleScript_ActivateSwitchInAbility);
@@ -12034,7 +12035,7 @@ void BS_TryWakeBattlersUproar(void)
     while (gBattleScripting.battler < gBattlersCount)
     {
         enum BattlerId battler = gBattleScripting.battler++;
-        bool32 hasSoundproof = GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && GetBattlerAbility(battler) == ABILITY_SOUNDPROOF;
+        bool32 hasSoundproof = GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && BattlerHasAbility(battler, ABILITY_SOUNDPROOF);
 
         if (IsBattlerAlive(battler) && gBattleMons[battler].status1 & STATUS1_SLEEP && !hasSoundproof)
         {

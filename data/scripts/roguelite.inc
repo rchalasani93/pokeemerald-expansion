@@ -68,6 +68,7 @@ Roguelite_EventScript_DraftNeedOne:
 
 Roguelite_EventScript_DraftDone:
 	msgbox Roguelite_Text_RunBegins, MSGBOX_DEFAULT
+	setvar VAR_ROGUELITE_ROUTE, ROGUELITE_ROUTE_WILD
 	goto Roguelite_EventScript_NextWave
 
 @ ---------------------------------------------------------------------------
@@ -80,10 +81,26 @@ Roguelite_EventScript_NextWave:
 	msgbox Roguelite_Text_NewBiome, MSGBOX_DEFAULT
 Roguelite_EventScript_AnnounceWave:
 	switch VAR_0x8005
-	case 2, Roguelite_EventScript_AnnounceFinal
-	case 1, Roguelite_EventScript_AnnounceBoss
+	case ROGUELITE_WAVE_KIND_FINAL, Roguelite_EventScript_AnnounceFinal
+	case ROGUELITE_WAVE_KIND_BOSS, Roguelite_EventScript_AnnounceBoss
+	case ROGUELITE_WAVE_KIND_TRAINER, Roguelite_EventScript_TrainerWave
+	case ROGUELITE_WAVE_KIND_REST, Roguelite_EventScript_RestWave
 	msgbox Roguelite_Text_Wave, MSGBOX_DEFAULT
 	goto Roguelite_EventScript_Fight
+
+Roguelite_EventScript_TrainerWave:
+	msgbox Roguelite_Text_TrainerWave, MSGBOX_DEFAULT
+	closemessage
+	cleartrainerflag TRAINER_ROGUELITE
+	trainerbattle_no_intro TRAINER_ROGUELITE, Roguelite_Text_TrainerDefeat
+	goto Roguelite_EventScript_AfterFight
+
+Roguelite_EventScript_RestWave:
+	playfanfare MUS_HEAL
+	msgbox Roguelite_Text_RestWave, MSGBOX_DEFAULT
+	waitfanfare
+	special Roguelite_AfterWave
+	goto Roguelite_EventScript_BetweenWaves
 
 Roguelite_EventScript_AnnounceBoss:
 	msgbox Roguelite_Text_BossWave, MSGBOX_DEFAULT
@@ -94,6 +111,7 @@ Roguelite_EventScript_AnnounceFinal:
 Roguelite_EventScript_Fight:
 	closemessage
 	special Roguelite_StartWaveBattle
+Roguelite_EventScript_AfterFight:
 	special Roguelite_AfterWave
 	switch VAR_RESULT
 	case ROGUELITE_WAVE_LOST, Roguelite_EventScript_RunLost
@@ -121,6 +139,12 @@ Roguelite_EventScript_BetweenWaves:
 	switch VAR_RESULT
 	case 1, Roguelite_EventScript_TakeBreak
 	case 2, Roguelite_EventScript_ConfirmGiveUp
+Roguelite_EventScript_ChooseRoute:
+	special Roguelite_BuildRouteMenu
+	message Roguelite_Text_ChooseRoute
+	waitmessage
+	dynmultistack 0, 0, TRUE, 3, FALSE, 0, DYN_MULTICHOICE_CB_NONE
+	special Roguelite_SetRoute
 	goto Roguelite_EventScript_NextWave
 
 Roguelite_EventScript_TakeBreak:
@@ -248,6 +272,21 @@ Roguelite_Text_WhatNext:
 
 Roguelite_Text_OptNextWave:
 	.string "Next wave$"
+
+Roguelite_Text_ChooseRoute:
+	.string "Which way will you go?$"
+
+Roguelite_Text_TrainerWave:
+	.string "Wave {STR_VAR_1} - A ROGUE trainer\n"
+	.string "challenges you!$"
+
+Roguelite_Text_TrainerDefeat:
+	.string "Tch… you're tougher than\n"
+	.string "you look.$"
+
+Roguelite_Text_RestWave:
+	.string "Wave {STR_VAR_1} - Rest stop.\n"
+	.string "Your team is fully healed!$"
 
 Roguelite_Text_OptBreak:
 	.string "Take a break$"

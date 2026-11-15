@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include "global.h"
+#include "innates.h"
 #include "fake_rtc.h"
 #include "gpu_regs.h"
 #include "load_save.h"
@@ -571,6 +572,7 @@ static void ResetGlobalVariables(void)
 {
     ReinitCallbacks();
     gBattleTypeFlags = 0;
+    Test_ClearSpeciesInnates();
 }
 
 static void FunctionTest_SetUp(void *data)

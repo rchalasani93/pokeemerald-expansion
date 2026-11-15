@@ -15,6 +15,9 @@
 #include "constants/battle.h"
 #include "constants/items.h"
 #include "constants/species.h"
+#include "constants/moves.h"
+#include "constants/opponents.h"
+#include "move.h"
 
 // ---------------------------------------------------------------------------
 // Data
@@ -547,7 +550,7 @@ void Roguelite_PrepareWave(void)
     {
         CreateScriptedWildMon(ROGUELITE_FINAL_BOSS, min(level + 5, MAX_LEVEL), ITEM_NONE);
         MakeBoss(&gParties[B_TRAINER_OPPONENT_A][0]);
-        gSpecialVar_Result = 2;
+        gSpecialVar_Result = ROGUELITE_WAVE_KIND_FINAL;
         return;
     }
 
@@ -556,7 +559,20 @@ void Roguelite_PrepareWave(void)
         species = EvolveForLevel(PickFromPool(biome->bosses, biome->bossCount), level + 3);
         CreateScriptedWildMon(species, min(level + 3, MAX_LEVEL), ITEM_NONE);
         MakeBoss(&gParties[B_TRAINER_OPPONENT_A][0]);
-        gSpecialVar_Result = 1;
+        gSpecialVar_Result = ROGUELITE_WAVE_KIND_BOSS;
+        return;
+    }
+
+    if (VarGet(VAR_ROGUELITE_ROUTE) == ROGUELITE_ROUTE_TRAINER)
+    {
+        // Party is generated when the battle starts (CreateNPCTrainerParty -> Roguelite_CreateTrainerParty)
+        gSpecialVar_Result = ROGUELITE_WAVE_KIND_TRAINER;
+        return;
+    }
+    if (VarGet(VAR_ROGUELITE_ROUTE) == ROGUELITE_ROUTE_REST)
+    {
+        HealPlayerParty();
+        gSpecialVar_Result = ROGUELITE_WAVE_KIND_REST;
         return;
     }
 
@@ -571,7 +587,7 @@ void Roguelite_PrepareWave(void)
     {
         CreateScriptedWildMon(species, level, ITEM_NONE);
     }
-    gSpecialVar_Result = 0;
+    gSpecialVar_Result = ROGUELITE_WAVE_KIND_WILD;
 }
 
 // Starts the battle built by Roguelite_PrepareWave. Follow with waitstate.
@@ -590,6 +606,11 @@ void Roguelite_AfterWave(void)
     u32 wave = GetWave();
 
     gSpecialVar_0x8004 = IsBossWave(wave);
+    if (VarGet(VAR_ROGUELITE_ROUTE) == ROGUELITE_ROUTE_REST && !IsBossWave(wave))
+    {
+        gSpecialVar_Result = ROGUELITE_WAVE_CLEARED;
+        return;
+    }
     switch (gBattleOutcome)
     {
     case B_OUTCOME_LOST:
@@ -686,7 +707,7 @@ void Roguelite_BuildRewardMenu(void)
         for (tries = 0; tries < 20; tries++)
         {
             bool32 dupe = FALSE;
-            choice = RollRewardOfTier(RollRewardTier(wave));
+            choice = RollRewardOfTier(RollRewardTier(VarGet(VAR_ROGUELITE_ROUTE) == ROGUELITE_ROUTE_TRAINER ? wave + 10 : wave));
             for (j = 0; j < i; j++)
                 if (sRewardChoices[j] == choice)
                     dupe = TRUE;
@@ -723,4 +744,297 @@ void Roguelite_GiveReward(void)
         return;
     }
     gSpecialVar_Result = AddBagItem(reward->item, reward->quantity);
+}
+
+// ---------------------------------------------------------------------------
+// Routes (Emerald Rogue-style path choice)
+// ---------------------------------------------------------------------------
+
+static const u8 sText_RouteWild[] = _("Wild route");
+static const u8 sText_RouteTrainer[] = _("Trainer route {STAR}");
+static const u8 sText_RouteRest[] = _("Rest stop (heal)");
+static const u8 sText_RouteBoss[] = _("Face the boss!");
+
+bool32 Roguelite_IsBossWave(void)
+{
+    return Roguelite_IsRunActive() && IsBossWave(GetWave());
+}
+
+// Pushes the route options for the upcoming wave. A boss wave has no choice.
+void Roguelite_BuildRouteMenu(void)
+{
+    u32 next = GetWave() + 1;
+    u8 *str;
+
+    if (IsBossWave(next) || next >= ROGUELITE_FINAL_WAVE)
+    {
+        str = AllocMenuString();
+        StringCopy(str, sText_RouteBoss);
+        PushMenuItem(str, ROGUELITE_ROUTE_WILD);
+        return;
+    }
+    str = AllocMenuString();
+    StringCopy(str, sText_RouteWild);
+    PushMenuItem(str, ROGUELITE_ROUTE_WILD);
+    str = AllocMenuString();
+    StringCopy(str, sText_RouteTrainer);
+    PushMenuItem(str, ROGUELITE_ROUTE_TRAINER);
+    // A rest stop shows up on roughly every third wave
+    if (next % 3 == 0)
+    {
+        str = AllocMenuString();
+        StringCopy(str, sText_RouteRest);
+        PushMenuItem(str, ROGUELITE_ROUTE_REST);
+    }
+}
+
+// Stores the route picked in VAR_RESULT.
+void Roguelite_SetRoute(void)
+{
+    u32 route = gSpecialVar_Result;
+    if (route > ROGUELITE_ROUTE_REST || IsBossWave(GetWave() + 1))
+        route = ROGUELITE_ROUTE_WILD;
+    VarSet(VAR_ROGUELITE_ROUTE, route);
+}
+
+// ---------------------------------------------------------------------------
+// Generated competitive trainer teams (Elite Redux-style difficulty)
+// ---------------------------------------------------------------------------
+
+static const u16 sTrainerHeldItems[] =
+{
+    ITEM_LEFTOVERS, ITEM_LIFE_ORB, ITEM_CHOICE_BAND, ITEM_CHOICE_SPECS, ITEM_CHOICE_SCARF,
+    ITEM_FOCUS_SASH, ITEM_SITRUS_BERRY, ITEM_EXPERT_BELT, ITEM_ASSAULT_VEST, ITEM_ROCKY_HELMET,
+    ITEM_LUM_BERRY, ITEM_WEAKNESS_POLICY, ITEM_SHELL_BELL, ITEM_SCOPE_LENS,
+};
+
+static const u16 sGoodStatusMoves[] =
+{
+    MOVE_SWORDS_DANCE, MOVE_DRAGON_DANCE, MOVE_NASTY_PLOT, MOVE_CALM_MIND, MOVE_QUIVER_DANCE,
+    MOVE_BULK_UP, MOVE_SHELL_SMASH, MOVE_RECOVER, MOVE_ROOST, MOVE_SLACK_OFF, MOVE_SPORE,
+    MOVE_WILL_O_WISP, MOVE_THUNDER_WAVE, MOVE_TOXIC, MOVE_STEALTH_ROCK, MOVE_LEECH_SEED,
+    MOVE_PROTECT, MOVE_AGILITY,
+};
+
+static bool32 CanSpeciesLearnMove(u32 species, u32 move, u32 level)
+{
+    const struct LevelUpMove *levelUp = GetSpeciesLevelUpLearnset(species);
+    const u16 *teachable = GetSpeciesTeachableLearnset(species);
+    u32 i;
+
+    for (i = 0; levelUp != NULL && levelUp[i].move != LEVEL_UP_MOVE_END; i++)
+    {
+        if (levelUp[i].move == move && levelUp[i].level <= level)
+            return TRUE;
+    }
+    // TMs/tutors are fair game once the run is under way
+    if (level >= 15)
+    {
+        for (i = 0; teachable != NULL && teachable[i] != MOVE_UNAVAILABLE; i++)
+        {
+            if (teachable[i] == move)
+                return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static bool32 IsUsableAttack(u32 move)
+{
+    switch (GetMoveEffect(move))
+    {
+    case EFFECT_OHKO:
+    case EFFECT_TWO_TURNS_ATTACK:
+    case EFFECT_SOLAR_BEAM:
+    case EFFECT_SEMI_INVULNERABLE:
+    case EFFECT_FOCUS_PUNCH:
+    case EFFECT_FUTURE_SIGHT:
+    case EFFECT_DREAM_EATER:
+    case EFFECT_SNORE:
+    case EFFECT_LAST_RESORT:
+    case EFFECT_BELCH:
+    case EFFECT_FLING:
+        return FALSE;
+    default:
+        break;
+    }
+    if (IsExplosionMove(move) || MoveHasAdditionalEffectSelf(move, MOVE_EFFECT_RECHARGE))
+        return FALSE;
+    return GetMovePower(move) >= 40 && GetMoveCategory(move) != DAMAGE_CATEGORY_STATUS;
+}
+
+static u32 ScoreAttack(u32 species, u32 move, bool32 physicalAttacker)
+{
+    u32 score = GetMovePower(move) * max(1, GetMoveStrikeCount(move));
+    u32 accuracy = GetMoveAccuracy(move);
+
+    if (accuracy != 0)
+        score = score * accuracy / 100;
+    if (GetMoveType(move) == GetSpeciesType(species, 0) || GetMoveType(move) == GetSpeciesType(species, 1))
+        score = score * 3 / 2;
+    if ((GetMoveCategory(move) == DAMAGE_CATEGORY_PHYSICAL) != physicalAttacker)
+        score = score * 3 / 5;
+    return score;
+}
+
+static void CollectLearnableMoves(u32 species, u32 level, u16 *out, u32 *count, u32 maxCount)
+{
+    const struct LevelUpMove *levelUp = GetSpeciesLevelUpLearnset(species);
+    const u16 *teachable = GetSpeciesTeachableLearnset(species);
+    u32 i;
+
+    *count = 0;
+    for (i = 0; levelUp != NULL && levelUp[i].move != LEVEL_UP_MOVE_END && *count < maxCount; i++)
+    {
+        if (levelUp[i].level <= level)
+            out[(*count)++] = levelUp[i].move;
+    }
+    if (level >= 15)
+    {
+        for (i = 0; teachable != NULL && teachable[i] != MOVE_UNAVAILABLE && *count < maxCount; i++)
+            out[(*count)++] = teachable[i];
+    }
+}
+
+// Picks up to three strong attacks of different types, then a setup/utility move.
+static void GiveCompetitiveMoveset(struct Pokemon *mon, u32 species, u32 level, bool32 physicalAttacker)
+{
+    u16 *learnable = Alloc(sizeof(u16) * 256);
+    u16 chosen[MAX_MON_MOVES] = {MOVE_NONE};
+    u32 chosenTypes[MAX_MON_MOVES] = {0};
+    u32 learnableCount, chosenCount = 0;
+    u32 i, j, slot;
+
+    if (learnable == NULL)
+        return;
+    CollectLearnableMoves(species, level, learnable, &learnableCount, 256);
+
+    // Up to three attacks, each of a type not yet covered
+    while (chosenCount < 3)
+    {
+        u32 best = MOVE_NONE, bestScore = 0;
+        for (i = 0; i < learnableCount; i++)
+        {
+            u32 move = learnable[i];
+            bool32 dupe = FALSE;
+            if (!IsUsableAttack(move))
+                continue;
+            for (j = 0; j < chosenCount; j++)
+            {
+                if (chosen[j] == move || chosenTypes[j] == GetMoveType(move))
+                    dupe = TRUE;
+            }
+            if (!dupe && ScoreAttack(species, move, physicalAttacker) > bestScore)
+            {
+                best = move;
+                bestScore = ScoreAttack(species, move, physicalAttacker);
+            }
+        }
+        if (best == MOVE_NONE)
+            break;
+        chosenTypes[chosenCount] = GetMoveType(best);
+        chosen[chosenCount++] = best;
+    }
+
+    // Last slot: a setup or utility move if the species has one
+    for (i = 0; i < ARRAY_COUNT(sGoodStatusMoves) && chosenCount < MAX_MON_MOVES; i++)
+    {
+        u32 move = sGoodStatusMoves[(i + Random()) % ARRAY_COUNT(sGoodStatusMoves)];
+        if (CanSpeciesLearnMove(species, move, level))
+        {
+            chosen[chosenCount++] = move;
+            break;
+        }
+    }
+    Free(learnable);
+
+    if (chosenCount == 0)
+        return; // keep the default level-up moveset
+    for (slot = 0; slot < MAX_MON_MOVES; slot++)
+        SetMonMoveSlot(mon, chosen[slot], slot);
+}
+
+static u32 GetTrainerPartySize(u32 wave)
+{
+    return min(2 + (wave - 1) / ROGUELITE_WAVES_PER_BIOME, PARTY_SIZE);
+}
+
+static u32 PickTrainerSpecies(u32 wave)
+{
+    // Mostly the current biome, sometimes any biome reached so far
+    u32 biomeId = GetBiomeIdForWave(wave);
+    if (biomeId > 0 && (Random() % 3) == 0)
+        biomeId = Random() % (biomeId + 1);
+    if ((Random() % 4) == 0)
+        return PickFromPool(sBiomes[biomeId].bosses, sBiomes[biomeId].bossCount);
+    return PickFromPool(sBiomes[biomeId].wild, sBiomes[biomeId].wildCount);
+}
+
+void Roguelite_CreateTrainerParty(struct Pokemon *party)
+{
+    u32 wave = max(GetWave(), 1);
+    u32 level = min(GetWaveLevel(wave) + 2, MAX_LEVEL);
+    u32 count = GetTrainerPartySize(wave);
+    u16 usedItems[PARTY_SIZE] = {ITEM_NONE};
+    u32 i, j;
+
+    ZeroPartyMons(party);
+    for (i = 0; i < count; i++)
+    {
+        struct Pokemon *mon = &party[i];
+        u32 species = SPECIES_NONE;
+        u32 tries, item = ITEM_NONE, nature, iv = MAX_PER_STAT_IVS, ev252 = MAX_PER_STAT_EVS, ev4 = 4, zero = 0;
+        bool32 physical;
+
+        // Species clause
+        for (tries = 0; tries < 10; tries++)
+        {
+            bool32 dupe = FALSE;
+            species = EvolveForLevel(PickTrainerSpecies(wave), level);
+            for (j = 0; j < i; j++)
+            {
+                if (GetMonData(&party[j], MON_DATA_SPECIES) == species)
+                    dupe = TRUE;
+            }
+            if (!dupe)
+                break;
+        }
+
+        CreateMonWithIVs(mon, species, level, Random32(), OTID_STRUCT_RANDOM_NO_SHINY, MAX_PER_STAT_IVS);
+        GiveMonInitialMoveset(mon);
+
+        physical = GetSpeciesBaseStat(species, STAT_ATK) >= GetSpeciesBaseStat(species, STAT_SPATK);
+        nature = physical ? ((Random() & 1) ? NATURE_JOLLY : NATURE_ADAMANT)
+                          : ((Random() & 1) ? NATURE_TIMID : NATURE_MODEST);
+        SetMonData(mon, MON_DATA_HIDDEN_NATURE, &nature);
+        SetMonData(mon, MON_DATA_HP_IV, &iv);
+        SetMonData(mon, MON_DATA_HP_EV, &ev4);
+        SetMonData(mon, MON_DATA_ATK_EV, physical ? &ev252 : &zero);
+        SetMonData(mon, MON_DATA_SPATK_EV, physical ? &zero : &ev252);
+        SetMonData(mon, MON_DATA_SPEED_EV, &ev252);
+
+        // Item clause
+        for (tries = 0; tries < 10; tries++)
+        {
+            bool32 dupe = FALSE;
+            item = sTrainerHeldItems[Random() % ARRAY_COUNT(sTrainerHeldItems)];
+            if (item == ITEM_CHOICE_BAND && !physical)
+                item = ITEM_CHOICE_SPECS;
+            else if (item == ITEM_CHOICE_SPECS && physical)
+                item = ITEM_CHOICE_BAND;
+            for (j = 0; j < i; j++)
+            {
+                if (usedItems[j] == item)
+                    dupe = TRUE;
+            }
+            if (!dupe)
+                break;
+        }
+        usedItems[i] = item;
+        SetMonData(mon, MON_DATA_HELD_ITEM, &item);
+
+        GiveCompetitiveMoveset(mon, species, level, physical);
+        CalculateMonStats(mon);
+    }
+    gPartiesCount[B_TRAINER_OPPONENT_A] = count;
 }

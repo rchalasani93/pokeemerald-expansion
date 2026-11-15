@@ -7,6 +7,7 @@
 #include "script_menu.h"
 #include "test/overworld_script.h"
 #include "test/test.h"
+#include "constants/opponents.h"
 
 static void FreeDynamicMenu(void)
 {
@@ -137,4 +138,54 @@ TEST("(Roguelite) Rewards offer three choices and grant the picked one")
     gSpecialVar_Result = 1;
     RUN_OVERWORLD_SCRIPT(special Roguelite_GiveReward;);
     EXPECT_EQ(gSpecialVar_Result, TRUE);
+}
+
+TEST("(Roguelite) Trainer routes generate a competitive team")
+{
+    u32 i, j, count;
+    struct Pokemon *party = gParties[B_TRAINER_OPPONENT_A];
+
+    FlagSet(FLAG_ROGUELITE_ACTIVE);
+    VarSet(VAR_ROGUELITE_ROUTE, ROGUELITE_ROUTE_TRAINER);
+    VarSet(VAR_ROGUELITE_WAVE, 24);
+    RUN_OVERWORLD_SCRIPT(special Roguelite_PrepareWave;);
+    EXPECT_EQ(gSpecialVar_Result, ROGUELITE_WAVE_KIND_TRAINER);
+
+    Roguelite_CreateTrainerParty(party);
+    count = 0;
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        if (GetMonData(&party[i], MON_DATA_SPECIES) != SPECIES_NONE)
+            count++;
+    }
+    EXPECT_EQ(count, 4); // waves 21-30 field 4 Pokémon
+
+    for (i = 0; i < count; i++)
+    {
+        EXPECT_EQ(GetMonData(&party[i], MON_DATA_LEVEL), ExpectedWaveLevel(25) + 2);
+        EXPECT_EQ(GetMonData(&party[i], MON_DATA_ATK_IV), MAX_PER_STAT_IVS);
+        EXPECT_EQ(GetMonData(&party[i], MON_DATA_SPEED_EV), MAX_PER_STAT_EVS);
+        EXPECT_NE(GetMonData(&party[i], MON_DATA_HELD_ITEM), ITEM_NONE);
+        EXPECT_NE(GetMonData(&party[i], MON_DATA_MOVE1), MOVE_NONE);
+        for (j = 0; j < i; j++)
+        {
+            EXPECT_NE(GetMonData(&party[i], MON_DATA_SPECIES), GetMonData(&party[j], MON_DATA_SPECIES)); // species clause
+            EXPECT_NE(GetMonData(&party[i], MON_DATA_HELD_ITEM), GetMonData(&party[j], MON_DATA_HELD_ITEM)); // item clause
+        }
+    }
+    VarSet(VAR_ROGUELITE_ROUTE, ROGUELITE_ROUTE_WILD);
+    FlagClear(FLAG_ROGUELITE_ACTIVE);
+}
+
+TEST("(Roguelite) Boss waves leave no route to choose")
+{
+    VarSet(VAR_ROGUELITE_WAVE, 9);
+    RUN_OVERWORLD_SCRIPT(special Roguelite_BuildRouteMenu;);
+    EXPECT_EQ(MultichoiceDynamic_StackSize(), 1);
+    FreeDynamicMenu();
+
+    VarSet(VAR_ROGUELITE_WAVE, 4);
+    RUN_OVERWORLD_SCRIPT(special Roguelite_BuildRouteMenu;);
+    EXPECT_GE(MultichoiceDynamic_StackSize(), 2);
+    FreeDynamicMenu();
 }

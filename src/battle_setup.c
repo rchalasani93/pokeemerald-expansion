@@ -1618,7 +1618,7 @@ static void CB2_EndTrainerBattle(void)
     }
     else if (IsPlayerDefeated(gBattleOutcome))
     {
-        if (CurrentBattlePyramidLocation() != PYRAMID_LOCATION_NONE || InTrainerHillChallenge() || FlagGet(B_FLAG_NO_WHITEOUT))
+        if (CurrentBattlePyramidLocation() != PYRAMID_LOCATION_NONE || InTrainerHillChallenge() || FlagGet(B_FLAG_NO_WHITEOUT) || Roguelite_IsRunActive())
             SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
         else
             SetMainCallback2(CB2_WhiteOut);
@@ -2222,6 +2222,11 @@ void CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Traine
 
 static void CreateNPCTrainerParty(struct Pokemon *party, u16 trainerNum)
 {
+    if (trainerNum == TRAINER_ROGUELITE && Roguelite_IsRunActive())
+    {
+        Roguelite_CreateTrainerParty(party);
+        return;
+    }
     if (!GetTrainerStructFromId(trainerNum)->overrideTrainer)
     {
         CreateNPCTrainerPartyFromTrainer(party, GetTrainerStructFromId(trainerNum));

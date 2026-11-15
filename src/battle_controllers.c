@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_ai_main.h"
 #include "battle_ai_util.h"
 #include "battle_anim.h"
@@ -1044,7 +1045,7 @@ void BtlController_EmitPrintString(enum BattlerId battler, u32 bufferId, enum St
     stringInfo->moveType = GetMoveType(gCurrentMove);
 
     for (i = 0; i < MAX_BATTLERS_COUNT; i++)
-        stringInfo->abilities[i] = gBattleMons[i].ability;
+        stringInfo->abilities[i] = GetAbilityForPopUp(i); // innate-aware
     for (i = 0; i < TEXT_BUFF_ARRAY_COUNT; i++)
     {
         stringInfo->textBuffs[0][i] = gBattleTextBuff1[i];
@@ -1073,7 +1074,7 @@ void BtlController_EmitPrintSelectionString(enum BattlerId battler, u32 bufferId
     stringInfo->bakScriptPartyIdx = gBattleStruct->scriptPartyIdx;
 
     for (i = 0; i < MAX_BATTLERS_COUNT; i++)
-        stringInfo->abilities[i] = gBattleMons[i].ability;
+        stringInfo->abilities[i] = GetAbilityForPopUp(i); // innate-aware
     for (i = 0; i < TEXT_BUFF_ARRAY_COUNT; i++)
     {
         stringInfo->textBuffs[0][i] = gBattleTextBuff1[i];

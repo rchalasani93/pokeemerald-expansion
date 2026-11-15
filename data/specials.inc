@@ -648,3 +648,5 @@ gSpecials::
 	def_special Roguelite_AfterWave
 	def_special Roguelite_BuildRewardMenu
 	def_special Roguelite_GiveReward
+	def_special Roguelite_BuildRouteMenu
+	def_special Roguelite_SetRoute

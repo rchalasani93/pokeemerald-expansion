@@ -2,6 +2,7 @@
 #include "battle_z_move.h"
 #include "malloc.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_anim.h"
 #include "battle_ai_field_statuses.h"
 #include "battle_ai_util.h"
@@ -261,7 +262,7 @@ static enum FieldEffectOutcome BenefitsFromSun(enum BattlerId battler)
      || HasMoveWithEffect(battler, EFFECT_HYDRO_STEAM))
         return FIELD_EFFECT_POSITIVE;
 
-    if (HasMoveWithFlag(battler, MoveHas50AccuracyInSun) || HasDamagingMoveOfType(battler, TYPE_WATER) || gAiLogicData->abilities[battler] == ABILITY_DRY_SKIN)
+    if (HasMoveWithFlag(battler, MoveHas50AccuracyInSun) || HasDamagingMoveOfType(battler, TYPE_WATER) || HasAbilityOrInnate(battler, gAiLogicData->abilities[battler], ABILITY_DRY_SKIN))
         return FIELD_EFFECT_NEGATIVE;
 
     return FIELD_EFFECT_NEUTRAL;

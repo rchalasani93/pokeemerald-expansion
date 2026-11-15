@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "innates.h"
 #include "battle_hold_effects.h"
 #include "battle_setup.h"
 #include "battle_util.h"
@@ -13,6 +14,35 @@
 #include "constants/abilities.h"
 #include "constants/items.h"
 #include "constants/moves.h"
+
+static bool32 IsRainEndTurnAbility(enum Ability ability) { return ability == ABILITY_DRY_SKIN || ability == ABILITY_RAIN_DISH; }
+static bool32 IsSunEndTurnAbility(enum Ability ability) { return ability == ABILITY_DRY_SKIN || ability == ABILITY_SOLAR_POWER; }
+static bool32 IsIceBodyAbility(enum Ability ability) { return ability == ABILITY_ICE_BODY; }
+
+// Which end-of-turn abilities run in which end-turn block (checked per ability slot for innates).
+static bool32 IsFirstBlockEndTurnAbility(enum Ability ability)
+{
+    return ability == ABILITY_HEALER || ability == ABILITY_HYDRATION || ability == ABILITY_SHED_SKIN;
+}
+
+static bool32 IsThirdBlockEndTurnAbility(enum Ability ability)
+{
+    switch (ability)
+    {
+    case ABILITY_TRUANT: // Not fully accurate but it has to be handled somehow. TODO: Implement the correct gen5+ behavior
+    case ABILITY_CUD_CHEW:
+    case ABILITY_SLOW_START:
+    case ABILITY_BAD_DREAMS:
+    case ABILITY_BALL_FETCH:
+    case ABILITY_HARVEST:
+    case ABILITY_MOODY:
+    case ABILITY_PICKUP:
+    case ABILITY_SPEED_BOOST:
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
 
 static enum BattlerId GetBattlerSideForMessage(enum BattleSide side)
 {
@@ -126,25 +156,25 @@ static bool32 HandleEndTurnWeatherDamage(enum BattlerId battler)
     case BATTLE_WEATHER_RAIN:
     case BATTLE_WEATHER_RAIN_PRIMAL:
     case BATTLE_WEATHER_RAIN_DOWNPOUR:
-        if (ability == ABILITY_DRY_SKIN || ability == ABILITY_RAIN_DISH)
+        if (HasAbilityOrInnate(battler, ability, ABILITY_DRY_SKIN) || HasAbilityOrInnate(battler, ability, ABILITY_RAIN_DISH))
         {
-            if (AbilityBattleEffects(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE))
+            if (AbilityBattleEffectsFirstSlot(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE, IsRainEndTurnAbility))
                 effect = TRUE;
         }
         break;
     case BATTLE_WEATHER_SUN:
     case BATTLE_WEATHER_SUN_PRIMAL:
-        if (ability == ABILITY_DRY_SKIN || ability == ABILITY_SOLAR_POWER)
+        if (HasAbilityOrInnate(battler, ability, ABILITY_DRY_SKIN) || HasAbilityOrInnate(battler, ability, ABILITY_SOLAR_POWER))
         {
-            if (AbilityBattleEffects(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE))
+            if (AbilityBattleEffectsFirstSlot(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE, IsSunEndTurnAbility))
                 effect = TRUE;
         }
         break;
     case BATTLE_WEATHER_SANDSTORM:
-        if (ability != ABILITY_SAND_VEIL
-         && ability != ABILITY_SAND_FORCE
-         && ability != ABILITY_SAND_RUSH
-         && ability != ABILITY_OVERCOAT
+        if (!HasAbilityOrInnate(battler, ability, ABILITY_SAND_VEIL)
+         && !HasAbilityOrInnate(battler, ability, ABILITY_SAND_FORCE)
+         && !HasAbilityOrInnate(battler, ability, ABILITY_SAND_RUSH)
+         && !HasAbilityOrInnate(battler, ability, ABILITY_OVERCOAT)
          && !IS_BATTLER_ANY_TYPE(battler, TYPE_ROCK, TYPE_GROUND, TYPE_STEEL)
          && gBattleMons[battler].volatiles.semiInvulnerable != STATE_UNDERGROUND
          && gBattleMons[battler].volatiles.semiInvulnerable != STATE_UNDERWATER
@@ -159,15 +189,15 @@ static bool32 HandleEndTurnWeatherDamage(enum BattlerId battler)
         break;
     case BATTLE_WEATHER_HAIL:
     case BATTLE_WEATHER_SNOW:
-        if (ability == ABILITY_ICE_BODY)
+        if (HasAbilityOrInnate(battler, ability, ABILITY_ICE_BODY))
         {
-            if (AbilityBattleEffects(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE))
+            if (AbilityBattleEffectsFirstSlot(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE, IsIceBodyAbility))
                 effect = TRUE;
         }
         else if (currBattleWeather == BATTLE_WEATHER_HAIL)
         {
-            if (ability != ABILITY_SNOW_CLOAK
-             && ability != ABILITY_OVERCOAT
+            if (!HasAbilityOrInnate(battler, ability, ABILITY_SNOW_CLOAK)
+             && !HasAbilityOrInnate(battler, ability, ABILITY_OVERCOAT)
              && !IS_BATTLER_OF_TYPE(battler, TYPE_ICE)
              && gBattleMons[battler].volatiles.semiInvulnerable != STATE_UNDERGROUND
              && gBattleMons[battler].volatiles.semiInvulnerable != STATE_UNDERWATER
@@ -413,19 +443,11 @@ static bool32 HandleEndTurnFirstEventBlock(enum BattlerId battler)
         break;
     case FIRST_EVENT_BLOCK_ABILITIES:
     {
-        enum Ability ability = GetBattlerAbility(battler);
-        switch (ability)
-        {
-        case ABILITY_HEALER:
-        case ABILITY_HYDRATION:
-        case ABILITY_SHED_SKIN:
-            if (AbilityBattleEffects(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE))
-                effect = TRUE;
-            break;
-        default:
-            break;
-        }
-        gBattleStruct->eventState.endTurnBlock++;
+        bool32 moreSlots = FALSE;
+        if (AbilityBattleEffectsAllSlotsFiltered(ABILITYEFFECT_ENDTURN, battler, GetBattlerAbility(battler), MOVE_NONE, TRUE, IsFirstBlockEndTurnAbility, &moreSlots))
+            effect = TRUE;
+        if (!moreSlots)
+            gBattleStruct->eventState.endTurnBlock++;
         break;
     }
     case FIRST_EVENT_BLOCK_HEAL_ITEMS:
@@ -502,7 +524,7 @@ static bool32 HandleEndTurnLeechSeed(enum BattlerId battler)
         s32 drainAmount = GetNonDynamaxMaxHP(drainedBattler) / 8;
         s32 healAmount = GetDrainedBigRootHp(receiverBattler, drainAmount);
 
-        if (GetBattlerAbility(drainedBattler) == ABILITY_LIQUID_OOZE)
+        if (BattlerHasAbility(drainedBattler, ABILITY_LIQUID_OOZE))
         {
             SetPassiveDamageAmount(drainedBattler, drainAmount);
             SetPassiveDamageAmount(receiverBattler, healAmount);
@@ -542,7 +564,7 @@ static bool32 HandleEndTurnPoison(enum BattlerId battler)
             if (isToxicPoison && (gBattleMons[battler].status1 & STATUS1_TOXIC_COUNTER) != STATUS1_TOXIC_TURN(15)) // not 16 turns
                 gBattleMons[battler].status1 += STATUS1_TOXIC_TURN(1);
         }
-        else if (ability == ABILITY_POISON_HEAL)
+        else if (HasAbilityOrInnate(battler, ability, ABILITY_POISON_HEAL))
         {
             if (isToxicPoison && (gBattleMons[battler].status1 & STATUS1_TOXIC_COUNTER) != STATUS1_TOXIC_TURN(15)) // not 16 turns
                 gBattleMons[battler].status1 += STATUS1_TOXIC_TURN(1);
@@ -587,7 +609,7 @@ static bool32 HandleEndTurnBurn(enum BattlerId battler)
      && !IsAbilityAndRecord(battler, ability, ABILITY_MAGIC_GUARD))
     {
         s32 burnDamage = GetNonDynamaxMaxHP(battler) / ((GetConfig(B_BURN_DAMAGE) >= GEN_7 || GetConfig(B_BURN_DAMAGE) == GEN_1) ? 16 : 8);
-        if (ability == ABILITY_HEATPROOF)
+        if (HasAbilityOrInnate(battler, ability, ABILITY_HEATPROOF))
         {
             if (burnDamage > (burnDamage / 2) + 1) // Record ability if the burn takes less damage than it normally would.
                 RecordAbilityBattle(battler, ABILITY_HEATPROOF);
@@ -933,8 +955,8 @@ static bool32 HandleEndTurnYawn(enum BattlerId battler)
         gBattleMons[battler].volatiles.yawn--;
         if (!gBattleMons[battler].volatiles.yawn
          && !(gBattleMons[battler].status1 & STATUS1_ANY)
-         && ability != ABILITY_VITAL_SPIRIT
-         && ability != ABILITY_INSOMNIA
+         && !HasAbilityOrInnate(battler, ability, ABILITY_VITAL_SPIRIT)
+         && !HasAbilityOrInnate(battler, ability, ABILITY_INSOMNIA)
          && !UproarWakeUpCheck(battler)
          && !IsLeafGuardProtected(battler, ability))
         {
@@ -1286,7 +1308,7 @@ static bool32 HandleEndTurnThirdEventBlock(enum BattlerId battler)
                 if (GetConfig(B_UPROAR) >= GEN_5) // This effect is only present in pre-Gen 5 Uproar
                     break;
 
-                bool32 hasSoundproof = GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && GetBattlerAbility(gEffectBattler) == ABILITY_SOUNDPROOF;
+                bool32 hasSoundproof = GetConfig(B_UPROAR_IGNORE_SOUNDPROOF) < GEN_5 && BattlerHasAbility(gEffectBattler, ABILITY_SOUNDPROOF);
 
                 if ((gBattleMons[gEffectBattler].status1 & STATUS1_SLEEP)
                  && !hasSoundproof)
@@ -1328,25 +1350,11 @@ static bool32 HandleEndTurnThirdEventBlock(enum BattlerId battler)
         break;
     case THIRD_EVENT_BLOCK_ABILITIES:
     {
-        enum Ability ability = GetBattlerAbility(battler);
-        switch (ability)
-        {
-        case ABILITY_TRUANT: // Not fully accurate but it has to be handled somehow. TODO: Implement the correct gen5+ behavior
-        case ABILITY_CUD_CHEW:
-        case ABILITY_SLOW_START:
-        case ABILITY_BAD_DREAMS:
-        case ABILITY_BALL_FETCH:
-        case ABILITY_HARVEST:
-        case ABILITY_MOODY:
-        case ABILITY_PICKUP:
-        case ABILITY_SPEED_BOOST:
-            if (AbilityBattleEffects(ABILITYEFFECT_ENDTURN, battler, ability, MOVE_NONE, TRUE))
-                effect = TRUE;
-            break;
-        default:
-            break;
-        }
-        gBattleStruct->eventState.endTurnBlock++;
+        bool32 moreSlots = FALSE;
+        if (AbilityBattleEffectsAllSlotsFiltered(ABILITYEFFECT_ENDTURN, battler, GetBattlerAbility(battler), MOVE_NONE, TRUE, IsThirdBlockEndTurnAbility, &moreSlots))
+            effect = TRUE;
+        if (!moreSlots)
+            gBattleStruct->eventState.endTurnBlock++;
         break;
     }
     case THIRD_EVENT_BLOCK_ITEMS:

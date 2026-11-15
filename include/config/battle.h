@@ -320,6 +320,7 @@
 
 // Move description menu
 #define B_SHOW_MOVE_DESCRIPTION     TRUE       // Shows move information in battler
+#define B_SHOW_DAMAGE_PREVIEW       TRUE       // Elite Redux-style: the move menu shows the estimated damage range (% of the target's HP) next to the move type.
 
 // Weather settings
 // Search for 'rain', 'sunny day', and 'hail' for move-specific or species-specific weather interactions.
@@ -382,6 +383,10 @@
 #define B_LAST_USED_BALL_CYCLE      TRUE       // If set to TRUE, then holding B_LAST_USED_BALL_BUTTON while pressing the D-Pad cycles through the Balls.
 #define B_CATCH_SWAP_INTO_PARTY     GEN_LATEST // In Gen7+, the option to swap caught Pokémon into the party will appear, allowing you to send a different Pokémon to the Box.
 #define B_CATCH_SWAP_CHECK_HMS      TRUE       // If set to TRUE, the catch swap feature above will prevent returning Pokémon to the Box if they know HMs.
+
+// Elite Redux-style innates
+#define B_INNATES                   TRUE
+#define B_ELITE_TRAINER_AI          TRUE       // If TRUE, every regular trainer battles with Smart Trainer + move/switch prediction AI, like Elite Redux. (Not applied in tests.)       // If TRUE, species get up to 3 always-active innate abilities (data: src/data/pokemon/innates.h). Disabled in tests unless a test declares innates.
 
 // Other settings
 #define B_MULTI_BATTLE_WHITEOUT         GEN_LATEST // In Gen4+, Multi Battles end when the player as well as their partner don't have any Pokémon left.
