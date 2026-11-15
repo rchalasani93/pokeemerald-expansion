@@ -303,6 +303,7 @@ def main():
     # ---- wild encounters
     log('Reading encounters and trainers...')
     locations = []
+    merged = {}  # map name -> {(method, species): [min level, max level]}
     enc = json.load(open(os.path.join(ROOT, 'src/data/wild_encounters.json'), encoding='utf-8'))
     for group in enc.get('wild_encounter_groups', []):
         if not group.get('for_maps'):
@@ -311,7 +312,10 @@ def main():
             mapname = e.get('map')
             if not mapname:
                 continue
-            slots = {}
+            suffix = e.get('base_label', '')
+            time = ' (%s)' % suffix.split('_')[-1].capitalize() if re.search(r'_(Morning|Day|Evening|Night)$', suffix) else ''
+            # Tables that share a map name (game-version variants, Altering Cave sets) are merged into one entry
+            slots = merged.setdefault(pretty_constant(mapname, 'MAP_') + time, {})
             for key, label in (('land_mons', 'Grass'), ('water_mons', 'Surfing'), ('rock_smash_mons', 'Rock Smash'),
                                ('fishing_mons', 'Fishing'), ('hidden_mons', 'Hidden')):
                 block = e.get(key)
@@ -323,13 +327,14 @@ def main():
                         rec = slots.setdefault((label, sp), [99, 0])
                         rec[0] = min(rec[0], mon.get('min_level', 0))
                         rec[1] = max(rec[1], mon.get('max_level', 0))
-            if slots:
-                suffix = e.get('base_label', '')
-                time = ' (%s)' % suffix.split('_')[-1].capitalize() if re.search(r'_(Morning|Day|Evening|Night)$', suffix) else ''
-                locations.append({
-                    'map': pretty_constant(mapname, 'MAP_') + time,
-                    'mons': sorted([[method, sp, lo, hi] for (method, sp), (lo, hi) in slots.items()], key=lambda r: (r[0], r[2])),
-                })
+    method_order = ['Grass', 'Surfing', 'Fishing', 'Rock Smash', 'Hidden']
+    for name, slots in merged.items():
+        if slots:
+            locations.append({
+                'map': name,
+                'mons': sorted([[method, sp, lo, hi] for (method, sp), (lo, hi) in slots.items()],
+                               key=lambda r: (method_order.index(r[0]), r[2], r[3])),
+            })
     locations.sort(key=lambda l: l['map'])
 
     # ---- trainers
