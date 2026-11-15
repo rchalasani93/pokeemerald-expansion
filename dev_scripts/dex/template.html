@@ -184,7 +184,8 @@ if (D.run) {
 const state = { section: 'species', id: null, filters: { species: { q: '', t1: '', t2: '', ab: '', mv: '', sort: 'dex' }, moves: { q: '', t: '', cat: '' }, abilities: { q: '' }, locations: { q: '' }, trainers: { q: '' } }, learnTab: 'lv' };
 const $nav = document.getElementById('nav'), $filters = document.getElementById('filters'), $rows = document.getElementById('rows'),
       $detail = document.getElementById('detail'), $panes = document.getElementById('panes');
-document.getElementById('summary').textContent = D.species.length + ' species, ' + D.moves.length + ' moves, ' + D.abilities.length + ' abilities. Built from the game data, works offline.';
+// forms (Megas, regional and cosmetic variants) share a dex number, so count each Pokémon once
+document.getElementById('summary').textContent = new Set(D.species.map(s => s.d)).size + ' species, ' + D.moves.length + ' moves, ' + D.abilities.length + ' abilities. Built from the game data, works offline.';
 
 SECTIONS.forEach(sec => {
   if (sec === 'run' && !D.run) return;
@@ -269,8 +270,9 @@ function renderRows() {
   const sec = state.section, frag = document.createDocumentFragment();
   let n = 0;
   if (sec === 'species') {
+    const seen = new Set();
     speciesMatches().forEach(i => {
-      const s = D.species[i]; n++;
+      const s = D.species[i]; seen.add(s.d); n = seen.size;
       frag.appendChild(rowButton('species/' + i, state.id === i, false, sprite(i, 40),
         el('span', null, el('div', null, fullName(s)), el('div', { class: 'sub' }, s.t.map(typeChip))),
         el('span', { class: 'num muted' }, bst(s))));

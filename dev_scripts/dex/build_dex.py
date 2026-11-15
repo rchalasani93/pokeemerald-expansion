@@ -488,8 +488,8 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, 'index.html')
     open(out, 'w', encoding='utf-8').write(html)
-    log('Wrote %s: %d species, %d moves, %d abilities, %d locations, %d trainers, %d sprites (%.1f MB)' % (
-        os.path.relpath(out, ROOT), len(data['species']), len(data['moves']), len(data['abilities']),
+    log('Wrote %s: %d species (%d entries with forms), %d moves, %d abilities, %d locations, %d trainers, %d sprites (%.1f MB)' % (
+        os.path.relpath(out, ROOT), len({s['d'] for s in data['species']}), len(data['species']), len(data['moves']), len(data['abilities']),
         len(data['locations']), len(data['trainers']), sum(1 for s in sprite_list if s), len(html) / 1e6))
 
 
